@@ -72,6 +72,11 @@ impl Controller {
 
         // Select the new profile.
         if let Some(profile) = self.profiles.select_profile(&self.state) {
+            self.state.insert(
+                String::from("profile"),
+                (Module::Internal, Value::String(profile.name.clone())),
+            );
+
             // Update our MIDI device displays.
             for device in self.devices.iter_mut() {
                 match device.controls.lock() {
