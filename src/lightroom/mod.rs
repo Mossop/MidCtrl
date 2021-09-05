@@ -1,20 +1,23 @@
 mod ipc;
 
-use std::thread;
+use std::{sync::mpsc::Sender, thread};
 
-use serde_json::{Map, Value};
+use crate::{state::Module, ControlMessage};
 
 use self::ipc::{connect, IncomingMessage, Outgoing};
 
 pub use self::ipc::OutgoingMessage;
 
 pub struct Lightroom {
-    state: Map<String, Value>,
     outgoing: Outgoing,
 }
 
 impl Lightroom {
-    pub fn new(incoming_port: u16, outgoing_port: u16) -> Lightroom {
+    pub fn new(
+        sender: Sender<ControlMessage>,
+        incoming_port: u16,
+        outgoing_port: u16,
+    ) -> Lightroom {
         let (incoming, outgoing) = connect(incoming_port, outgoing_port);
 
         thread::spawn(move || {
@@ -22,15 +25,18 @@ impl Lightroom {
                 match message {
                     IncomingMessage::Test => (),
                     IncomingMessage::Disconnect => (),
-                    IncomingMessage::State(state) => {}
+                    IncomingMessage::State(state) => {
+                        if let Err(e) =
+                            sender.send(ControlMessage::StateChange(Module::Lightroom, state))
+                        {
+                            log::error!("Failed to send state update: {}", e);
+                        }
+                    }
                 }
             }
         });
 
-        Lightroom {
-            state: Map::new(),
-            outgoing,
-        }
+        Lightroom { outgoing }
     }
 
     pub fn send(&self, message: OutgoingMessage) {

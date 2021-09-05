@@ -3,12 +3,18 @@ use std::{
     fs::{read_dir, DirEntry, File},
     io,
     path::Path,
-    sync::mpsc::{channel, Receiver},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
+    thread,
 };
 
 use midi_control::MidiMessage;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use serde::Deserialize;
+
+use crate::ControlMessage;
 
 use super::controls::Control;
 
@@ -20,14 +26,17 @@ pub struct DeviceConfig {
 
 pub struct Device {
     pub name: String,
-    input_connection: MidiInputConnection<()>,
-    input: Receiver<MidiMessage>,
+    // Required to keep the input connection open.
+    connection: MidiInputConnection<()>,
     output: Option<MidiOutputConnection>,
-    controls: Vec<Control>,
+    controls: Arc<Mutex<Vec<Control>>>,
 }
 
 impl Device {
-    pub fn new(config: DeviceConfig) -> Result<Option<Device>, Box<dyn Error>> {
+    pub fn new(
+        control_sender: Sender<ControlMessage>,
+        config: DeviceConfig,
+    ) -> Result<Option<Device>, Box<dyn Error>> {
         let midi_input = MidiInput::new("MidiCtrl")?;
         let midi_output = MidiOutput::new("MidiCtrl")?;
 
@@ -45,6 +54,8 @@ impl Device {
             if config.name == port_name {
                 let (sender, receiver) = channel();
 
+                let controls = Arc::new(Mutex::new(config.controls));
+
                 let connection = midi_input.connect(
                     &port,
                     "MidiCtrl",
@@ -55,17 +66,51 @@ impl Device {
                     (),
                 )?;
 
-                return Ok(Some(Device {
+                Device::listen(receiver, control_sender, controls.clone());
+
+                let device = Device {
                     name: config.name,
-                    input_connection: connection,
-                    input: receiver,
+                    connection,
                     output: output.and_then(|port| midi_output.connect(&port, "MidiCtrl").ok()),
-                    controls: config.controls,
-                }));
+                    controls: controls,
+                };
+
+                return Ok(Some(device));
             }
         }
 
         Ok(None)
+    }
+
+    fn update_control(&mut self) {}
+
+    fn listen(
+        receiver: Receiver<MidiMessage>,
+        sender: Sender<ControlMessage>,
+        controls: Arc<Mutex<Vec<Control>>>,
+    ) {
+        thread::spawn(move || {
+            for message in receiver {
+                match controls.lock() {
+                    Ok(mut controls) => match message {
+                        MidiMessage::ControlChange(channel, event) => {
+                            // Modify controls.
+                            // Send ControlMessage::ControlChange
+                        }
+                        MidiMessage::NoteOn(channel, event) => {
+                            // Modify controls.
+                            // Send ControlMessage::ControlChange
+                        }
+                        MidiMessage::NoteOff(channel, event) => {
+                            // Modify controls.
+                            // Send ControlMessage::ControlChange
+                        }
+                        _ => (),
+                    },
+                    Err(e) => log::error!("Failed to lock controls: {}", e),
+                }
+            }
+        });
     }
 }
 
@@ -83,7 +128,7 @@ fn read_device_config(
     Ok(Some(serde_json::from_reader(file)?))
 }
 
-pub fn devices(root: &Path) -> Vec<Device> {
+pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> Vec<Device> {
     let mut devices = Vec::new();
 
     let dir = root.join("devices");
@@ -105,7 +150,7 @@ pub fn devices(root: &Path) -> Vec<Device> {
             }
         };
 
-        match Device::new(config) {
+        match Device::new(sender.clone(), config) {
             Ok(Some(device)) => {
                 log::debug!("Connected to MIDI device {}", device.name);
                 devices.push(device);

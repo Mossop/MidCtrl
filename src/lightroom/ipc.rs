@@ -12,16 +12,11 @@ use std::{
 use crate::state::Value;
 
 #[derive(Deserialize, Debug)]
-pub struct State {
-    pub variables: HashMap<String, Value>,
-}
-
-#[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename_all = "lowercase")]
 pub enum IncomingMessage {
     Test,
-    State(State),
+    State(HashMap<String, Value>),
     Disconnect,
 }
 

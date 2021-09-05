@@ -3,7 +3,12 @@ mod midi;
 mod profile;
 mod state;
 
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::HashMap,
+    error::Error,
+    path::Path,
+    sync::mpsc::{channel, Receiver},
+};
 
 use lightroom::Lightroom;
 use midi::{
@@ -15,7 +20,13 @@ use state::State;
 
 use self::state::{Module, Value};
 
+pub enum ControlMessage {
+    ControlChange,
+    StateChange(Module, HashMap<String, Value>),
+}
+
 pub struct Controller {
+    receiver: Receiver<ControlMessage>,
     lightroom: Lightroom,
     devices: Vec<Device>,
     profiles: Profiles,
@@ -24,16 +35,33 @@ pub struct Controller {
 
 impl Controller {
     pub fn new(root: &Path) -> Controller {
+        let (sender, receiver) = channel();
+
+        let profiles = Profiles::new(root);
+        let mut state = State::new();
+
+        if let Some(profile) = profiles.current_profile() {
+            state.insert(
+                String::from("profile"),
+                (Module::Internal, Value::String(profile.name.clone())),
+            );
+        }
+
+        // We expect that the first thing Lightroom will do is send a state update which will
+        // trigger updates to the device.
+
         Controller {
-            lightroom: Lightroom::new(61327, 61328),
-            devices: devices(root),
-            profiles: Profiles::new(root),
-            state: State::new(),
+            receiver,
+            lightroom: Lightroom::new(sender.clone(), 61327, 61328),
+            devices: devices(sender, root),
+            profiles,
+            state,
         }
     }
 
     pub fn control_updated(&mut self, control: &Control) {
         // Generate action from profile
+        // Maybe dispatch to lightroom
     }
 
     pub fn update_states(&mut self, module: Module, state: HashMap<String, Value>) {
@@ -43,6 +71,16 @@ impl Controller {
 
         if let Some(profile) = self.profiles.select_profile(&self.state) {
             // Apply profile to devices
+        }
+    }
+
+    pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
+        loop {
+            let message = self.receiver.recv()?;
+            match message {
+                ControlMessage::StateChange(module, state) => self.update_states(module, state),
+                ControlMessage::ControlChange => (),
+            }
         }
     }
 }
