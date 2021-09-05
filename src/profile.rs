@@ -1,3 +1,4 @@
+use midir::MidiOutputConnection;
 use serde::Deserialize;
 use std::{
     collections::HashMap,
@@ -7,12 +8,16 @@ use std::{
     path::Path,
 };
 
-use crate::state::State;
+use crate::{midi::controls::Control, state::State};
 
 #[derive(Deserialize, Debug)]
 pub struct Profile {
     #[serde(skip)]
     pub name: String,
+}
+
+impl Profile {
+    pub fn update_controls(&self, connection: &mut MidiOutputConnection, controls: &Vec<Control>) {}
 }
 
 pub struct Profiles {

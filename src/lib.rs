@@ -65,12 +65,24 @@ impl Controller {
     }
 
     pub fn update_states(&mut self, module: Module, state: HashMap<String, Value>) {
+        // Update our state.
         for (k, v) in state {
             self.state.insert(k, (module.clone(), v));
         }
 
+        // Select the new profile.
         if let Some(profile) = self.profiles.select_profile(&self.state) {
-            // Apply profile to devices
+            // Update our MIDI device displays.
+            for device in self.devices.iter_mut() {
+                match device.controls.lock() {
+                    Ok(controls) => {
+                        if let Some(ref mut output) = device.output {
+                            profile.update_controls(output, &controls);
+                        }
+                    }
+                    Err(e) => log::error!("Failed to lock controls for update: {}", e),
+                };
+            }
         }
     }
 

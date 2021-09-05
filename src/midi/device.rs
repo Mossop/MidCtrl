@@ -28,8 +28,8 @@ pub struct Device {
     pub name: String,
     // Required to keep the input connection open.
     connection: MidiInputConnection<()>,
-    output: Option<MidiOutputConnection>,
-    controls: Arc<Mutex<Vec<Control>>>,
+    pub output: Option<MidiOutputConnection>,
+    pub controls: Arc<Mutex<Vec<Control>>>,
 }
 
 impl Device {
