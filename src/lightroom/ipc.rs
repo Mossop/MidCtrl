@@ -50,18 +50,6 @@ impl Iterator for Incoming {
     }
 }
 
-pub struct Outgoing {
-    sender: Sender<OutgoingMessage>,
-}
-
-impl Outgoing {
-    pub fn send(&self, message: OutgoingMessage) {
-        if let Err(e) = self.sender.send(message) {
-            log::error!("Failed to send IPC message: {}", e);
-        }
-    }
-}
-
 fn open_outgoing_stream(
     port: u16,
     receiver: &Receiver<OutgoingMessage>,
@@ -109,7 +97,7 @@ fn open_incoming_stream(
     Ok(true)
 }
 
-pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Outgoing) {
+pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Sender<OutgoingMessage>) {
     let (incoming_sender, incoming_receiver) = channel();
     let (outgoing_sender, outgoing_receiver) = channel();
 
@@ -137,8 +125,6 @@ pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Outgoing) {
         Incoming {
             receiver: incoming_receiver,
         },
-        Outgoing {
-            sender: outgoing_sender,
-        },
+        outgoing_sender,
     )
 }

@@ -3,11 +3,7 @@ use std::{
     fs::{read_dir, DirEntry, File},
     io,
     path::Path,
-    sync::{
-        mpsc::{channel, Receiver, Sender},
-        Arc, Mutex,
-    },
-    thread,
+    sync::{mpsc::Sender, Arc, Mutex},
 };
 
 use midi_control::MidiMessage;
@@ -27,7 +23,7 @@ pub struct DeviceConfig {
 pub struct Device {
     pub name: String,
     // Required to keep the input connection open.
-    connection: MidiInputConnection<()>,
+    _connection: MidiInputConnection<()>,
     pub output: Option<MidiOutputConnection>,
     pub controls: Arc<Mutex<Vec<Control>>>,
 }
@@ -52,25 +48,22 @@ impl Device {
         for port in midi_input.ports() {
             let port_name = midi_input.port_name(&port)?;
             if config.name == port_name {
-                let (sender, receiver) = channel();
-
                 let controls = Arc::new(Mutex::new(config.controls));
 
+                let receiver_controls = controls.clone();
                 let connection = midi_input.connect(
                     &port,
                     "MidiCtrl",
                     move |_, buffer, _| {
                         let message = MidiMessage::from(buffer);
-                        sender.send(message).unwrap();
+                        Device::handle_message(message, &control_sender, &receiver_controls);
                     },
                     (),
                 )?;
 
-                Device::listen(receiver, control_sender, controls.clone());
-
                 let device = Device {
                     name: config.name,
-                    connection,
+                    _connection: connection,
                     output: output.and_then(|port| midi_output.connect(&port, "MidiCtrl").ok()),
                     controls: controls,
                 };
@@ -84,33 +77,29 @@ impl Device {
 
     fn update_control(&mut self) {}
 
-    fn listen(
-        receiver: Receiver<MidiMessage>,
-        sender: Sender<ControlMessage>,
-        controls: Arc<Mutex<Vec<Control>>>,
+    fn handle_message(
+        message: MidiMessage,
+        sender: &Sender<ControlMessage>,
+        controls: &Arc<Mutex<Vec<Control>>>,
     ) {
-        thread::spawn(move || {
-            for message in receiver {
-                match controls.lock() {
-                    Ok(mut controls) => match message {
-                        MidiMessage::ControlChange(channel, event) => {
-                            // Modify controls.
-                            // Send ControlMessage::ControlChange
-                        }
-                        MidiMessage::NoteOn(channel, event) => {
-                            // Modify controls.
-                            // Send ControlMessage::ControlChange
-                        }
-                        MidiMessage::NoteOff(channel, event) => {
-                            // Modify controls.
-                            // Send ControlMessage::ControlChange
-                        }
-                        _ => (),
-                    },
-                    Err(e) => log::error!("Failed to lock controls: {}", e),
+        match controls.lock() {
+            Ok(mut controls) => match message {
+                MidiMessage::ControlChange(channel, event) => {
+                    // Modify controls.
+                    // Send ControlMessage::ControlChange
                 }
-            }
-        });
+                MidiMessage::NoteOn(channel, event) => {
+                    // Modify controls.
+                    // Send ControlMessage::ControlChange
+                }
+                MidiMessage::NoteOff(channel, event) => {
+                    // Modify controls.
+                    // Send ControlMessage::ControlChange
+                }
+                _ => (),
+            },
+            Err(e) => log::error!("Failed to lock controls: {}", e),
+        }
     }
 }
 
