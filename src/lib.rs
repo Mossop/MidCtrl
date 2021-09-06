@@ -29,7 +29,7 @@ pub enum ControlMessage {
     },
     StateChange {
         module: Module,
-        state: HashMap<String, Value>,
+        state: HashMap<String, Option<Value>>,
     },
 }
 
@@ -110,10 +110,13 @@ impl Controller {
         self.update_profile();
     }
 
-    fn update_state(&mut self, module: Module, state: HashMap<String, Value>) {
+    fn update_state(&mut self, module: Module, state: HashMap<String, Option<Value>>) {
         // Update our state.
         for (k, v) in state {
-            self.state.insert(k, (module.clone(), v));
+            match v {
+                Some(val) => self.state.insert(k, (module.clone(), val)),
+                None => self.state.remove(&k),
+            };
         }
 
         self.update_profile();

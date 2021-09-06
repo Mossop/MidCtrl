@@ -22,7 +22,7 @@
 -- SOFTWARE.
 --
 
-local json = { _version = "0.1.2" }
+local json = { _version = "0.1.2", null = {} }
 
 -------------------------------------------------------------------------------
 -- Encode
@@ -57,6 +57,8 @@ end
 
 
 local function encode_table(val, stack)
+  if val == json.null then return "null" end
+
   local res = {}
   stack = stack or {}
 

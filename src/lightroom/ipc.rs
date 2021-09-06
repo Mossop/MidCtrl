@@ -21,7 +21,9 @@ use crate::state::Value;
 pub enum IncomingMessage {
     Test,
     Reset,
-    State { state: HashMap<String, Value> },
+    State {
+        state: HashMap<String, Option<Value>>,
+    },
     Disconnect,
 }
 

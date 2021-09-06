@@ -7,6 +7,7 @@ local LrFileUtils = import "LrFileUtils"
 
 local Utils = require "Utils"
 local logger = require("Logging")("State")
+local json = require "json"
 
 local function currentPhoto()
   local catalog = LrApplication.activeCatalog()
@@ -50,27 +51,12 @@ end
 function State:buildPhotoState(photo)
   Utils.runAsync(logger, "build photo state", function()
     local state = {}
-    local catalog = LrApplication.activeCatalog()
     local module = LrApplicationView.getCurrentModuleName()
-    local photo = catalog:getTargetPhoto()
-
-    if not photo then
-      logger:info("No photo")
-      return state
-    end
-
-    if module ~= "develop" then
-      local photos = catalog:getTargetPhotos()
-      if photos[2] then
-        logger:info("Multiple photos")
-        return state
-      end
-    end
 
     for i, param in ipairs(self.params) do
-      local value = nil
+      local value = json.null
 
-      if param["type"] == "develop" and module == "develop" then
+      if photo and param["type"] == "develop" and module == "develop" then
         value = LrDevelopController.getValue(param["parameter"])
         local range = param["max"] - param["min"]
         value = (value - param["min"]) / range
