@@ -1,11 +1,12 @@
 use std::{
-    error::Error,
     fs::{read_dir, File, ReadDir},
+    io,
     marker::PhantomData,
     path::Path,
 };
 
 use serde::de::DeserializeOwned;
+use serde_json::Error;
 
 pub struct IterJson<T>
 where
@@ -19,7 +20,7 @@ impl<T> Iterator for IterJson<T>
 where
     T: DeserializeOwned,
 {
-    type Item = (String, T);
+    type Item = Result<(String, T), Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -55,14 +56,14 @@ where
             name.truncate(name.len() - 5);
 
             match serde_json::from_reader(reader) {
-                Ok(data) => return Some((name, data)),
-                Err(e) => (),
+                Ok(data) => return Some(Ok((name, data))),
+                Err(e) => return Some(Err(e)),
             }
         }
     }
 }
 
-pub fn iter_json<T>(path: &Path) -> Result<IterJson<T>, Box<dyn Error>>
+pub fn iter_json<T>(path: &Path) -> Result<IterJson<T>, io::Error>
 where
     T: DeserializeOwned,
 {

@@ -1,7 +1,5 @@
 use std::{
     error::Error,
-    fs::{read_dir, DirEntry, File},
-    io,
     path::Path,
     sync::{mpsc::Sender, Arc, Mutex},
 };
@@ -30,6 +28,7 @@ pub struct Device {
 
 impl Device {
     pub fn new(
+        name: String,
         control_sender: Sender<ControlMessage>,
         config: DeviceConfig,
     ) -> Result<Option<Device>, Box<dyn Error>> {
@@ -62,7 +61,7 @@ impl Device {
                 )?;
 
                 let device = Device {
-                    name: config.name,
+                    name,
                     _connection: connection,
                     output: output.and_then(|port| midi_output.connect(&port, "MidiCtrl").ok()),
                     controls: controls,
@@ -115,14 +114,17 @@ pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> Vec<Device> {
         }
     };
 
-    for (_, config) in entries {
-        match Device::new(sender.clone(), config) {
-            Ok(Some(device)) => {
-                log::debug!("Connected to MIDI device {}", device.name);
-                devices.push(device);
-            }
-            Ok(None) => continue,
-            Err(e) => log::error!("Failed to connect to device: {}", e),
+    for entry in entries {
+        match entry {
+            Ok((name, config)) => match Device::new(name, sender.clone(), config) {
+                Ok(Some(device)) => {
+                    log::debug!("Connected to MIDI device {}", device.name);
+                    devices.push(device);
+                }
+                Ok(None) => continue,
+                Err(e) => log::error!("Failed to connect to device: {}", e),
+            },
+            Err(e) => log::error!("Failed to parse device config: {}", e),
         }
     }
 

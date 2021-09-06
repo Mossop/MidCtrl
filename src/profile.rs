@@ -5,9 +5,17 @@ use std::{collections::HashMap, path::Path};
 use crate::{midi::controls::Control, state::State, utils::iter_json};
 
 #[derive(Deserialize, Debug)]
+pub struct ProfileControl {
+    device: String,
+    layer: Option<String>,
+    name: String,
+}
+
+#[derive(Deserialize, Debug)]
 pub struct Profile {
     #[serde(skip)]
     pub name: String,
+    controls: Vec<ProfileControl>,
 }
 
 impl Profile {
@@ -31,13 +39,14 @@ fn read_profiles(root: &Path) -> HashMap<String, Profile> {
         }
     };
 
-    for (name, mut profile) in entries {
-        profile.name = name.clone();
-        profiles.insert(name, profile);
-    }
-
-    if profiles.is_empty() {
-        log::warn!("Found no profiles.");
+    for entry in entries {
+        match entry {
+            Ok((name, mut profile)) => {
+                profile.name = name.clone();
+                profiles.insert(name, profile);
+            }
+            Err(e) => log::error!("Failed to parse profile: {}", e),
+        }
     }
 
     profiles
@@ -77,14 +86,17 @@ impl Profiles {
 
     pub fn select_new_profile(&mut self, state: &State) -> Option<&Profile> {
         let new_profile = self.choose_profile(Some(state));
-        if let Some(ref name) = new_profile {
-            log::info!("Switched to profile {}", name);
-        }
 
         if new_profile == self.current_profile {
-            self.current_profile()
-        } else {
             None
+        } else {
+            if let Some(ref name) = new_profile {
+                log::info!("Switched to profile {}", name);
+                self.profiles.get(name)
+            } else {
+                log::info!("There are no longer any valid profiles");
+                None
+            }
         }
     }
 
