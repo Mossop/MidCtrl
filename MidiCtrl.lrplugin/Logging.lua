@@ -2,7 +2,7 @@ local LrLogger = import "LrLogger"
 
 local lrLogger = LrLogger("MidiCtrl")
 lrLogger:enable({
-  trace = "logfile",
+  -- trace = "logfile",
   debug = "logfile",
   info = "logfile",
   warn = "logfile",

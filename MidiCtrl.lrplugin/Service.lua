@@ -1,8 +1,8 @@
 local LrPathUtils = import "LrPathUtils"
 local LrDialogs = import "LrDialogs"
-local LrApplicationView = import "LrApplicationView"
 
-local State = require("State")
+local State = require "State"
+local Utils = require "Utils"
 local logger = require("Logging")("Service")
 
 local IPC = require "IPC"
@@ -22,6 +22,8 @@ local Service = {
 function Service:init()
   logger:trace("Startup")
   self.running = true
+
+  State:init()
 
   IPC:init(function (event, message)
     if event == "message" then
@@ -60,20 +62,24 @@ function Service:shutdown()
 end
 
 function Service:onMessage(message)
+  Utils.runAsync(logger, "connected", function()
+  end)
 end
 
 function Service:onConnected()
-  logger:trace("Connected")
-  LrDialogs.showBezel("Connected to MidiCtrl")
+  Utils.runAsync(logger, "connected", function()
+    logger:trace("Connected")
+    LrDialogs.showBezel("Connected to MidiCtrl")
 
-  IPC:send({
-    type = "reset",
-  })
+    IPC:send({
+      type = "reset",
+    })
 
-  IPC:send({
-    type = "state",
-    state = State:getState(),
-  })
+    IPC:send({
+      type = "state",
+      state = State:getState(),
+    })
+  end)
 end
 
 return Service

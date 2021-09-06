@@ -1,156 +1,73 @@
+local LrApplication = import "LrApplication"
 local LrApplicationView = import "LrApplicationView"
 local LrTasks = import "LrTasks"
 local LrDevelopController = import "LrDevelopController"
+local LrPathUtils = import "LrPathUtils"
+local LrFileUtils = import "LrFileUtils"
 
 local Utils = require "Utils"
 local logger = require("Logging")("State")
 local json = require "json"
 
-local DevelopParams = {
-  "Temperature",
-  "Tint",
-  "Exposure",
-  "Highlights", 	-- (controls Recovery in Version 1 and Version 2)
-  "Shadows", 	-- (controls Fill Light in Version 1 and Version 2)
-  "Brightness", -- (no effect unless in Version 1 or Version 2)
-  "Contrast",
-  "Whites", 	-- (no effect in Version 1 and Version 2)
-  "Blacks",
-  "Texture",
-  "Clarity",
-  "Dehaze",
-  "Vibrance",
-  "Saturation",
-
- -- tonePanel
-  "ParametricDarks",
-  "ParametricLights",
-  "ParametricShadows",
-  "ParametricHighlights",
-  "ParametricShadowSplit",
-  "ParametricMidtoneSplit",
-  "ParametricHighlightSplit",
-
-  -- mixerPanel
-  -- HSL / Color
-  "SaturationAdjustmentRed",
-  "SaturationAdjustmentOrange",
-  "SaturationAdjustmentYellow",
-  "SaturationAdjustmentGreen",
-  "SaturationAdjustmentAqua",
-  "SaturationAdjustmentBlue",
-  "SaturationAdjustmentPurple",
-  "SaturationAdjustmentMagenta",
-  "HueAdjustmentRed",
-  "HueAdjustmentOrange",
-  "HueAdjustmentYellow",
-  "HueAdjustmentGreen",
-  "HueAdjustmentAqua",
-  "HueAdjustmentBlue",
-  "HueAdjustmentPurple",
-  "HueAdjustmentMagenta",
-  "LuminanceAdjustmentRed",
-  "LuminanceAdjustmentOrange",
-  "LuminanceAdjustmentYellow",
-  "LuminanceAdjustmentGreen",
-  "LuminanceAdjustmentAqua",
-  "LuminanceAdjustmentBlue",
-  "LuminanceAdjustmentPurple",
-  "LuminanceAdjustmentMagenta",
-  -- B & W
-  "GrayMixerRed",
-  "GrayMixerOrange",
-  "GrayMixerYellow",
-  "GrayMixerGreen",
-  "GrayMixerAqua",
-  "GrayMixerBlue",
-  "GrayMixerPurple",
-  "GrayMixerMagenta",
-
-  -- colorGradingPanel
-  "SplitToningShadowHue",
-  "SplitToningShadowSaturation",
-  "ColorGradeShadowLum",
-  "SplitToningHighlightHue",
-  "SplitToningHighlightSaturation",
-  "ColorGradeHighlightLum",
-  "ColorGradeMidtoneHue",
-  "ColorGradeMidtoneSat",
-  "ColorGradeMidtoneLum",
-  "ColorGradeGlobalHue",
-  "ColorGradeGlobalSat",
-  "ColorGradeGlobalLum",
-  "SplitToningBalance",
-  "ColorGradeBlending",
-
-  -- detailPanel
-  "Sharpness",
-  "SharpenRadius",
-  "SharpenDetail",
-  "SharpenEdgeMasking",
-  "LuminanceSmoothing",
-  "LuminanceNoiseReductionDetail",
-  "LuminanceNoiseReductionContrast",
-  "ColorNoiseReduction",
-  "ColorNoiseReductionDetail",
-  "ColorNoiseReductionSmoothness",
-
-  -- effectsPanel
-  -- Post-Crop Vignetting
-  "PostCropVignetteAmount",
-  "PostCropVignetteMidpoint",
-  "PostCropVignetteFeather",
-  "PostCropVignetteRoundness",
-  "PostCropVignetteStyle",
-  "PostCropVignetteHighlightContrast",
-  -- Grain
-  "GrainAmount",
-  "GrainSize",
-  "GrainFrequency",
-
-  -- lensCorrectionsPanel
-  -- Profile
-  "LensProfileDistortionScale",
-  "LensProfileVignettingScale",
-  "LensManualDistortionAmount",
-  -- Color
-  "DefringePurpleAmount",
-  "DefringePurpleHueLo",
-  "DefringePurpleHueHi",
-  "DefringeGreenAmount",
-  "DefringeGreenHueLo",
-  "DefringeGreenHueHi",
-  -- Manual Perspective
-  "PerspectiveVertical",
-  "PerspectiveHorizontal",
-  "PerspectiveRotate",
-  "PerspectiveScale",
-  "PerspectiveAspect",
-  "PerspectiveX",
-  "PerspectiveY",
-  "PerspectiveUpright",
-
-  -- calibratePanel
-  "ShadowTint",
-  "RedHue",
-  "RedSaturation",
-  "GreenHue",
-  "GreenSaturation",
-  "BlueHue",
-  "BlueSaturation",
-
-  -- Crop Angle
-  "straightenAngle",
-}
-
 local State = {
-  running = true
+  running = true,
+  params = {},
 }
+
+function State:init()
+  local paramsFile = LrPathUtils.child(_PLUGIN.path, "params.json")
+  local data = LrFileUtils.readFile(paramsFile)
+
+  local success, params = Utils.jsonDecode(logger, data)
+  if not success then
+    return
+  end
+
+  self.params = params
+end
+
+function State:getPhotoState()
+  local state = {}
+  local catalog = LrApplication.activeCatalog()
+  local module = LrApplicationView.getCurrentModuleName()
+  local photo = catalog:getTargetPhoto()
+
+  if not photo then
+    return state
+  end
+
+  if module ~= "develop" then
+    local photos = catalog:getTargetPhotos()
+    if photos[2] then
+      return state
+    end
+  end
+
+  local developState = photo:getDevelopSettings()
+
+  for i, param in ipairs(self.params) do
+    local value = nil
+
+    if param["type"] == "develop" then
+      value = developState[param["parameter"]]
+    end
+
+    if value ~= nil then
+      local range = param["max"] - param["min"]
+      value = (value - param["min"]) / range
+    end
+
+    state[param["parameter"]] = value
+  end
+
+  return state
+end
 
 function State:getState()
-  return {
-    module = LrApplicationView.getCurrentModuleName(),
-  }
+  local state = self:getPhotoState()
+  state.module = LrApplicationView.getCurrentModuleName()
+
+  return state
 end
 
 function State:disconnect()
@@ -170,19 +87,6 @@ function State:watch(listener)
         update.module = newModule
         hasUpdate = true
         module = newModule
-
-        if newModule == "develop" then
-          local params = {}
-          for i, param in ipairs(DevelopParams) do
-            local min, max = LrDevelopController.getRange(param)
-            params[param] = {
-              min = min,
-              max = max,
-            }
-          end
-
-          logger:info(json.encode(params))
-        end
       end
 
       if hasUpdate then

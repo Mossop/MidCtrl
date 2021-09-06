@@ -61,17 +61,12 @@ impl Controller {
         }
     }
 
-    pub fn control_updated(&mut self, control: &Control) {
+    fn control_updated(&mut self, control: &Control) {
         // Generate action from profile
         // Maybe dispatch to lightroom
     }
 
-    pub fn update_state(&mut self, module: Module, state: HashMap<String, Value>) {
-        // Update our state.
-        for (k, v) in state {
-            self.state.insert(k, (module.clone(), v));
-        }
-
+    fn update_profile(&mut self) {
         // Select the new profile.
         let profile = match self.profiles.select_new_profile(&self.state) {
             Some(profile) => {
@@ -103,13 +98,27 @@ impl Controller {
         }
     }
 
+    fn reset_state(&mut self) {
+        self.state.clear();
+        self.update_profile();
+    }
+
+    fn update_state(&mut self, module: Module, state: HashMap<String, Value>) {
+        // Update our state.
+        for (k, v) in state {
+            self.state.insert(k, (module.clone(), v));
+        }
+
+        self.update_profile();
+    }
+
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
             let message = self.receiver.recv()?;
             match message {
                 ControlMessage::Reset => (),
                 ControlMessage::StateChange(module, state) => self.update_state(module, state),
-                ControlMessage::ControlChange => (),
+                ControlMessage::ControlChange => self.reset_state(),
             }
         }
     }
