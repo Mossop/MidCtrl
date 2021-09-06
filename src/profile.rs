@@ -2,7 +2,11 @@ use midir::MidiOutputConnection;
 use serde::Deserialize;
 use std::{collections::HashMap, path::Path};
 
-use crate::{midi::controls::Control, state::State, utils::iter_json};
+use crate::{
+    midi::{controls::Control, device::Device},
+    state::State,
+    utils::iter_json,
+};
 
 #[derive(Deserialize, Debug)]
 pub struct ProfileControl {
@@ -19,7 +23,58 @@ pub struct Profile {
 }
 
 impl Profile {
-    pub fn update_controls(&self, connection: &mut MidiOutputConnection, controls: &Vec<Control>) {}
+    fn get_control<'a>(&'a self, device: &str, control: &Control) -> Option<&'a ProfileControl> {
+        let info = match control {
+            Control::Continuous(control) => &control.info,
+            Control::Key(control) => &control.info,
+        };
+
+        for profile_control in &self.controls {
+            if profile_control.device == device
+                && profile_control.layer == info.layer
+                && profile_control.name == info.name
+            {
+                return Some(&profile_control);
+            }
+        }
+
+        None
+    }
+
+    pub fn verify_controls(&self, devices: &Vec<Device>) -> Result<(), String> {
+        for device in devices {
+            match device.controls.lock() {
+                Ok(controls) => {
+                    for control in controls.iter() {
+                        if let Some(profile_control) = self.get_control(&device.name, control) {
+                            ()
+                        }
+                    }
+                }
+                Err(e) => return Err(format!("Unable to lock device controls: {}", e)),
+            };
+        }
+
+        Ok(())
+    }
+
+    pub fn update_controls(
+        &self,
+        connection: &mut MidiOutputConnection,
+        state: &State,
+        device: &str,
+        controls: &mut Vec<Control>,
+        force: bool,
+    ) {
+        for control in controls.iter_mut() {
+            if let Some(profile_control) = self.get_control(device, &control) {
+                match control {
+                    Control::Continuous(control) => (),
+                    Control::Key(control) => if control.display {},
+                }
+            }
+        }
+    }
 }
 
 pub struct Profiles {
@@ -27,7 +82,7 @@ pub struct Profiles {
     profiles: HashMap<String, Profile>,
 }
 
-fn read_profiles(root: &Path) -> HashMap<String, Profile> {
+fn read_profiles(root: &Path, devices: &Vec<Device>) -> HashMap<String, Profile> {
     let mut profiles = HashMap::new();
 
     let dir = root.join("profiles");
@@ -41,10 +96,13 @@ fn read_profiles(root: &Path) -> HashMap<String, Profile> {
 
     for entry in entries {
         match entry {
-            Ok((name, mut profile)) => {
-                profile.name = name.clone();
-                profiles.insert(name, profile);
-            }
+            Ok((name, mut profile)) => match profile.verify_controls(devices) {
+                Ok(()) => {
+                    profile.name = name.clone();
+                    profiles.insert(name, profile);
+                }
+                Err(e) => log::error!("Profile contains invalid controls: {}", e),
+            },
             Err(e) => log::error!("Failed to parse profile: {}", e),
         }
     }
@@ -53,8 +111,8 @@ fn read_profiles(root: &Path) -> HashMap<String, Profile> {
 }
 
 impl Profiles {
-    pub fn new(root: &Path) -> Profiles {
-        let profile_list = read_profiles(root);
+    pub fn new(root: &Path, devices: &Vec<Device>) -> Profiles {
+        let profile_list = read_profiles(root, devices);
 
         if profile_list.len() > 0 {
             log::info!("Loaded {} profiles", profile_list.len());

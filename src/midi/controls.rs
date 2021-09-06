@@ -42,8 +42,8 @@ fn deserialize_channel<'de, D: Deserializer<'de>>(de: D) -> Result<Channel, D::E
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct ControlInfo {
-    name: String,
-    layer: Option<String>,
+    pub name: String,
+    pub layer: Option<String>,
 }
 
 impl PartialEq for ControlInfo {
@@ -55,18 +55,22 @@ impl PartialEq for ControlInfo {
 #[derive(Deserialize, Clone, Debug)]
 pub struct ContinuousControl {
     #[serde(flatten)]
-    info: ControlInfo,
+    pub info: ControlInfo,
     #[serde(deserialize_with = "deserialize_channel")]
-    channel: Channel,
-    control: u8,
-    min: u8,
-    max: u8,
+    pub channel: Channel,
+    pub control: u8,
+    pub min: u8,
+    pub max: u8,
     #[serde(skip)]
-    state: u8,
+    pub state: u8,
 }
 
 impl ContinuousControl {
-    pub fn update(&mut self, connection: &mut MidiOutputConnection, state: u8) {
+    pub fn update(&mut self, connection: &mut MidiOutputConnection, state: u8, force: bool) {
+        if !force && self.state == state {
+            return;
+        }
+
         let message = midi_control::control_change(self.channel, self.control, state);
 
         match connection.send_message(message) {
@@ -82,7 +86,7 @@ impl PartialEq for ContinuousControl {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum KeyState {
     Off,
     On,
@@ -97,20 +101,24 @@ impl Default for KeyState {
 #[derive(Deserialize, Clone, Debug)]
 pub struct KeyControl {
     #[serde(flatten)]
-    info: ControlInfo,
+    pub info: ControlInfo,
     #[serde(deserialize_with = "deserialize_channel")]
-    channel: Channel,
-    note: MidiNote,
-    off: u8,
-    on: u8,
+    pub channel: Channel,
+    pub note: MidiNote,
+    pub off: u8,
+    pub on: u8,
     #[serde(default)]
-    display: bool,
+    pub display: bool,
     #[serde(skip)]
-    state: KeyState,
+    pub state: KeyState,
 }
 
 impl KeyControl {
-    pub fn update(&mut self, connection: &mut MidiOutputConnection, state: KeyState) {
+    pub fn update(&mut self, connection: &mut MidiOutputConnection, state: KeyState, force: bool) {
+        if !force && state == self.state {
+            return;
+        }
+
         let message = match state {
             KeyState::On => midi_control::note_on(self.channel, self.note, self.on),
             KeyState::Off => midi_control::note_off(self.channel, self.note, self.off),

@@ -33,7 +33,10 @@ impl Lightroom {
                     IncomingMessage::Disconnect => (),
                     IncomingMessage::Reset => send_control_message(ControlMessage::Reset),
                     IncomingMessage::State { state } => {
-                        send_control_message(ControlMessage::StateChange(Module::Lightroom, state))
+                        send_control_message(ControlMessage::StateChange {
+                            module: Module::Lightroom,
+                            state,
+                        })
                     }
                 }
             }

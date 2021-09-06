@@ -23,8 +23,14 @@ use self::state::{Module, Value};
 
 pub enum ControlMessage {
     Reset,
-    ControlChange,
-    StateChange(Module, HashMap<String, Value>),
+    ControlChange {
+        device: String,
+        control: Control,
+    },
+    StateChange {
+        module: Module,
+        state: HashMap<String, Value>,
+    },
 }
 
 pub struct Controller {
@@ -39,7 +45,8 @@ impl Controller {
     pub fn new(root: &Path) -> Controller {
         let (sender, receiver) = channel();
 
-        let profiles = Profiles::new(root);
+        let devices = devices(sender.clone(), root);
+        let profiles = Profiles::new(root, &devices);
         let mut state = State::new();
 
         if let Some(profile) = profiles.current_profile() {
@@ -54,14 +61,14 @@ impl Controller {
 
         Controller {
             receiver,
-            lightroom: Lightroom::new(sender.clone(), 61327, 61328),
-            devices: devices(sender, root),
+            lightroom: Lightroom::new(sender, 61327, 61328),
+            devices,
             profiles,
             state,
         }
     }
 
-    fn control_updated(&mut self, control: &Control) {
+    fn control_updated(&mut self, device: String, control: Control) {
         // Generate action from profile
         // Maybe dispatch to lightroom
     }
@@ -88,9 +95,9 @@ impl Controller {
 
         for device in self.devices.iter_mut() {
             match device.controls.lock() {
-                Ok(controls) => {
+                Ok(ref mut controls) => {
                     if let Some(ref mut output) = device.output {
-                        profile.update_controls(output, &controls);
+                        profile.update_controls(output, &self.state, &device.name, controls, false);
                     }
                 }
                 Err(e) => log::error!("Failed to lock controls for update: {}", e),
@@ -116,9 +123,12 @@ impl Controller {
         loop {
             let message = self.receiver.recv()?;
             match message {
-                ControlMessage::Reset => (),
-                ControlMessage::StateChange(module, state) => self.update_state(module, state),
-                ControlMessage::ControlChange => self.reset_state(),
+                ControlMessage::Reset => self.reset_state(),
+                ControlMessage::StateChange { module, state } => self.update_state(module, state),
+                ControlMessage::ControlChange { device, control } => {
+                    log::trace!("Saw control change {:?} on device {}", control, device);
+                    self.control_updated(device, control)
+                }
             }
         }
     }

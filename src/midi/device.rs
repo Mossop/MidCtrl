@@ -50,8 +50,10 @@ impl Device {
                 if let Some(ref mut output) = output {
                     for control in config.controls.iter_mut() {
                         match control {
-                            Control::Continuous(ref mut control) => control.update(output, 0),
-                            Control::Key(ref mut control) => control.update(output, KeyState::Off),
+                            Control::Continuous(ref mut control) => control.update(output, 0, true),
+                            Control::Key(ref mut control) => {
+                                control.update(output, KeyState::Off, true)
+                            }
                         }
                     }
                 }
@@ -59,12 +61,20 @@ impl Device {
                 let controls = Arc::new(Mutex::new(config.controls));
 
                 let receiver_controls = controls.clone();
+                let device_name = name.clone();
                 let connection = midi_input.connect(
                     &port,
                     "MidiCtrl",
                     move |_, buffer, _| {
                         let message = MidiMessage::from(buffer);
-                        Device::handle_message(message, &control_sender, &receiver_controls);
+                        if let Err(e) = Device::handle_message(
+                            device_name.clone(),
+                            message,
+                            &control_sender,
+                            &receiver_controls,
+                        ) {
+                            log::error!("Failed handling MIDI message: {}", e);
+                        }
                     },
                     (),
                 )?;
@@ -83,31 +93,64 @@ impl Device {
         Ok(None)
     }
 
-    fn update_control(&mut self) {}
-
-    fn handle_message(
+    fn handle_message<'a>(
+        device: String,
         message: MidiMessage,
         sender: &Sender<ControlMessage>,
-        controls: &Arc<Mutex<Vec<Control>>>,
-    ) {
-        match controls.lock() {
-            Ok(mut controls) => match message {
-                MidiMessage::ControlChange(channel, event) => {
-                    // Modify controls.
-                    // Send ControlMessage::ControlChange
+        controls: &'a Arc<Mutex<Vec<Control>>>,
+    ) -> Result<(), Box<dyn Error + 'a>> {
+        let mut controls = controls.lock()?;
+
+        match message {
+            MidiMessage::ControlChange(channel, event) => {
+                for control in controls.iter_mut() {
+                    if let Control::Continuous(control) = control {
+                        if control.channel == channel && control.control == event.control {
+                            control.state = event.value;
+
+                            sender.send(ControlMessage::ControlChange {
+                                device: device,
+                                control: Control::Continuous(control.clone()),
+                            })?;
+                            break;
+                        }
+                    }
                 }
-                MidiMessage::NoteOn(channel, event) => {
-                    // Modify controls.
-                    // Send ControlMessage::ControlChange
+            }
+            MidiMessage::NoteOn(channel, event) => {
+                for control in controls.iter_mut() {
+                    if let Control::Key(control) = control {
+                        if control.channel == channel && control.note == event.key {
+                            control.state = KeyState::On;
+
+                            sender.send(ControlMessage::ControlChange {
+                                device: device,
+                                control: Control::Key(control.clone()),
+                            })?;
+                            break;
+                        }
+                    }
                 }
-                MidiMessage::NoteOff(channel, event) => {
-                    // Modify controls.
-                    // Send ControlMessage::ControlChange
+            }
+            MidiMessage::NoteOff(channel, event) => {
+                for control in controls.iter_mut() {
+                    if let Control::Key(control) = control {
+                        if control.channel == channel && control.note == event.key {
+                            control.state = KeyState::Off;
+
+                            sender.send(ControlMessage::ControlChange {
+                                device: device,
+                                control: Control::Key(control.clone()),
+                            })?;
+                            break;
+                        }
+                    }
                 }
-                _ => (),
-            },
-            Err(e) => log::error!("Failed to lock controls: {}", e),
+            }
+            _ => (),
         }
+
+        Ok(())
     }
 }
 
