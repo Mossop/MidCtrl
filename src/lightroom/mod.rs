@@ -21,16 +21,19 @@ impl Lightroom {
         let (incoming, sender) = connect(incoming_port, outgoing_port);
 
         thread::spawn(move || {
+            let send_control_message = move |message| {
+                if let Err(e) = control_sender.send(message) {
+                    log::error!("Failed to send state update: {}", e);
+                }
+            };
+
             for message in incoming {
                 match message {
                     IncomingMessage::Test => (),
                     IncomingMessage::Disconnect => (),
+                    IncomingMessage::Reset => send_control_message(ControlMessage::Reset),
                     IncomingMessage::State { state } => {
-                        if let Err(e) = control_sender
-                            .send(ControlMessage::StateChange(Module::Lightroom, state))
-                        {
-                            log::error!("Failed to send state update: {}", e);
-                        }
+                        send_control_message(ControlMessage::StateChange(Module::Lightroom, state))
                     }
                 }
             }

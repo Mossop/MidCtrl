@@ -22,6 +22,7 @@ use state::State;
 use self::state::{Module, Value};
 
 pub enum ControlMessage {
+    Reset,
     ControlChange,
     StateChange(Module, HashMap<String, Value>),
 }
@@ -106,6 +107,7 @@ impl Controller {
         loop {
             let message = self.receiver.recv()?;
             match message {
+                ControlMessage::Reset => (),
                 ControlMessage::StateChange(module, state) => self.update_state(module, state),
                 ControlMessage::ControlChange => (),
             }

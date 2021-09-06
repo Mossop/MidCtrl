@@ -4,7 +4,10 @@ use std::{
     error::Error,
     io::{BufRead, BufReader, ErrorKind, Write},
     net::{Ipv4Addr, TcpStream},
-    sync::mpsc::{channel, Receiver, Sender},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
     thread,
     time::Duration,
 };
@@ -16,6 +19,7 @@ use crate::state::Value;
 #[serde(rename_all = "lowercase")]
 pub enum IncomingMessage {
     Test,
+    Reset,
     State { state: HashMap<String, Value> },
     Disconnect,
 }
@@ -23,10 +27,7 @@ pub enum IncomingMessage {
 #[derive(Serialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename_all = "lowercase")]
-pub enum OutgoingMessage {
-    Test,
-    Disconnect,
-}
+pub enum OutgoingMessage {}
 
 pub struct Incoming {
     receiver: Receiver<IncomingMessage>,
@@ -68,26 +69,36 @@ fn open_stream(port: u16) -> Result<TcpStream, Box<dyn Error>> {
 
 fn open_outgoing_stream(
     port: u16,
-    receiver: &Receiver<OutgoingMessage>,
+    outgoing_stream: &Arc<Mutex<Option<TcpStream>>>,
 ) -> Result<bool, Box<dyn Error>> {
-    let mut stream = open_stream(port)?;
+    let stream = open_stream(port)?;
 
     log::trace!("IPC outgoing stream connected");
 
-    for message in receiver.iter() {
-        log::trace!("Sending message: {:?}", message);
-        let mut data = serde_json::to_vec(&message)?;
-        data.push(0x0a);
-        stream.write_all(&data)?;
-        stream.flush()?;
+    let read_stream = stream.try_clone()?;
 
-        match message {
-            OutgoingMessage::Disconnect => {
-                return Ok(false);
+    if let Ok(mut guard) = outgoing_stream.lock() {
+        guard.replace(stream);
+    }
+
+    let reader = BufReader::new(read_stream);
+    let mut lines = reader.lines();
+    loop {
+        match lines.next() {
+            None => break,
+            Some(Err(e)) => {
+                log::error!("Error reading from outgoing stream: {}", e);
+                break;
             }
-            _ => (),
+            _ => continue,
         }
     }
+
+    if let Ok(mut guard) = outgoing_stream.lock() {
+        guard.take();
+    }
+
+    log::trace!("IPC outgoing stream closed");
 
     Ok(true)
 }
@@ -113,6 +124,8 @@ fn open_incoming_stream(
         }
     }
 
+    log::trace!("IPC incoming stream closed");
+
     Ok(true)
 }
 
@@ -130,14 +143,41 @@ pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Sender<Outg
         thread::sleep(Duration::from_millis(200));
     });
 
+    let outgoing_stream = Arc::new(Mutex::new(None));
+    let receiving_stream = outgoing_stream.clone();
+
     thread::spawn(move || loop {
-        match open_outgoing_stream(outgoing_port, &outgoing_receiver) {
+        match open_outgoing_stream(outgoing_port, &outgoing_stream) {
             Ok(false) => return,
             Ok(true) => (),
             Err(e) => log::error!("IPC outgoing stream error: {}", e),
         }
 
         thread::sleep(Duration::from_millis(200));
+    });
+
+    thread::spawn(move || {
+        let send_message = |message| -> Result<(), Box<dyn Error>> {
+            if let Some(ref mut stream) = *(receiving_stream.lock()?) {
+                log::trace!("Sending message: {:?}", message);
+
+                let mut data = serde_json::to_vec(&message)?;
+                data.push(0x0a);
+
+                stream.write_all(&data)?;
+                stream.flush()?;
+            } else {
+                log::warn!("Attempt to send message while not connected");
+            }
+
+            Ok(())
+        };
+
+        for message in outgoing_receiver {
+            if let Err(e) = send_message(message) {
+                log::error!("Error while sending message: {}", e);
+            }
+        }
     });
 
     (

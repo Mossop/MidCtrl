@@ -41,15 +41,15 @@ end
 function IPC:startSender(port)
   local logger = Logger("IPC Sender")
   Utils.runAsync(logger, "send ipc", function(context)
+    local disconnected = false
+
+    logger:trace("listening", port)
+
     LrSocket.bind({
       functionContext = context,
       plugin = _PLUGIN,
       port = port,
       mode = "send",
-
-      onConnecting = function(socket, port)
-        logger:trace("listening", port)
-      end,
 
       onConnected = function(socket)
         logger:debug("connected")
@@ -62,10 +62,12 @@ function IPC:startSender(port)
 
       onClosed = function(socket)
         self.sender = nil
+        disconnected = true
+
         logger:debug("closed")
 
         if self.running then
-          socket:reconnect()
+          self:startSender(port)
         end
       end,
 
@@ -73,7 +75,15 @@ function IPC:startSender(port)
         self.sender = nil
 
         if err ~= "timeout" then
+          disconnected = true
+
           logger:error("onError", err)
+
+          if self.running then
+            self:startSender(port)
+          end
+
+          return
         end
 
         if self.running then
@@ -82,11 +92,11 @@ function IPC:startSender(port)
       end,
     })
 
-    while self.running do
+    while self.running and not disconnected do
       LrTasks.sleep(0.2)
     end
 
-    if self.sender then
+    if self.sender and not disconnected then
       self.sender:close()
     end
   end)
@@ -95,15 +105,13 @@ end
 function IPC:startReceiver(port)
   local logger = Logger("IPC Receiver")
   Utils.runAsync(logger, "receive ipc", function(context)
+    logger:trace("listening", port)
+
     LrSocket.bind({
       functionContext = context,
       plugin = _PLUGIN,
       port = port,
       mode = "receive",
-
-      onConnecting = function(socket, port)
-        logger:trace("listening", port)
-      end,
 
       onConnected = function(socket)
         logger:debug("connected")
@@ -127,6 +135,10 @@ function IPC:startReceiver(port)
 
       onClosed = function(socket)
         self.receiver = nil
+        if self.sender then
+          self.sender:close()
+        end
+
         logger:debug("closed")
 
         if self.running then
@@ -136,6 +148,9 @@ function IPC:startReceiver(port)
 
       onError = function(socket, err)
         self.receiver = nil
+        if self.sender then
+          self.sender:close()
+        end
 
         if err ~= "timeout" then
           logger:error("onError", err)
