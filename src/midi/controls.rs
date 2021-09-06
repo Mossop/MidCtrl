@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use midi_control::note::MidiNote;
 use midi_control::transport::MidiMessageSend;
 use midi_control::Channel;
@@ -53,9 +55,7 @@ impl PartialEq for ControlInfo {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub struct ContinuousControl {
-    #[serde(flatten)]
-    pub info: ControlInfo,
+pub struct KnobControl {
     #[serde(deserialize_with = "deserialize_channel")]
     pub channel: Channel,
     pub control: u8,
@@ -65,7 +65,7 @@ pub struct ContinuousControl {
     pub state: u8,
 }
 
-impl ContinuousControl {
+impl KnobControl {
     pub fn update(&mut self, connection: &mut MidiOutputConnection, state: u8, force: bool) {
         if !force && self.state == state {
             return;
@@ -80,48 +80,49 @@ impl ContinuousControl {
     }
 }
 
-impl PartialEq for ContinuousControl {
-    fn eq(&self, other: &ContinuousControl) -> bool {
-        self.channel.eq(&other.channel) && self.control.eq(&other.control)
-    }
+#[derive(Deserialize, Clone, Debug)]
+pub struct Knob {
+    pub name: String,
+    pub layers: HashMap<String, KnobControl>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum KeyState {
+pub enum ButtonState {
     Off,
     On,
 }
 
-impl Default for KeyState {
+impl Default for ButtonState {
     fn default() -> Self {
-        KeyState::Off
+        ButtonState::Off
     }
 }
 
 #[derive(Deserialize, Clone, Debug)]
-pub struct KeyControl {
-    #[serde(flatten)]
-    pub info: ControlInfo,
+pub struct ButtonControl {
     #[serde(deserialize_with = "deserialize_channel")]
     pub channel: Channel,
     pub note: MidiNote,
     pub off: u8,
     pub on: u8,
-    #[serde(default)]
-    pub display: bool,
     #[serde(skip)]
-    pub state: KeyState,
+    pub state: ButtonState,
 }
 
-impl KeyControl {
-    pub fn update(&mut self, connection: &mut MidiOutputConnection, state: KeyState, force: bool) {
+impl ButtonControl {
+    pub fn update(
+        &mut self,
+        connection: &mut MidiOutputConnection,
+        state: ButtonState,
+        force: bool,
+    ) {
         if !force && state == self.state {
             return;
         }
 
         let message = match state {
-            KeyState::On => midi_control::note_on(self.channel, self.note, self.on),
-            KeyState::Off => midi_control::note_off(self.channel, self.note, self.off),
+            ButtonState::On => midi_control::note_on(self.channel, self.note, self.on),
+            ButtonState::Off => midi_control::note_off(self.channel, self.note, self.off),
         };
 
         match connection.send_message(message) {
@@ -131,17 +132,19 @@ impl KeyControl {
     }
 }
 
-impl PartialEq for KeyControl {
-    fn eq(&self, other: &KeyControl) -> bool {
-        self.channel.eq(&other.channel) && self.note.eq(&other.note)
-    }
+#[derive(Deserialize, Clone, Debug)]
+pub struct Button {
+    pub name: String,
+    #[serde(default)]
+    pub display: bool,
+    pub layers: HashMap<String, ButtonControl>,
 }
 
-#[derive(Deserialize, PartialEq, Clone, Debug)]
+#[derive(Deserialize, Clone, Debug)]
 #[serde(tag = "type")]
-pub enum Control {
+pub enum Hardware {
     #[serde(rename = "cc")]
-    Continuous(ContinuousControl),
+    Continuous(Knob),
     #[serde(rename = "key")]
-    Key(KeyControl),
+    Key(Button),
 }

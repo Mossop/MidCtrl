@@ -1,9 +1,9 @@
 use midir::MidiOutputConnection;
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use std::{collections::HashMap, path::Path};
 
 use crate::{
-    midi::{controls::Control, device::Device},
+    midi::{controls::Hardware, device::Device},
     state::State,
     utils::iter_json,
 };
@@ -11,43 +11,77 @@ use crate::{
 #[derive(Deserialize, Debug)]
 pub struct ProfileControl {
     device: String,
-    layer: Option<String>,
     name: String,
+    layer: String,
+}
+
+fn deserialize_profile_controls<'de, D>(
+    de: D,
+) -> Result<HashMap<(String, String, String), ProfileControl>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let list = Vec::<ProfileControl>::deserialize(de)?;
+
+    let mut map = HashMap::new();
+
+    for control in list {
+        map.insert(
+            (
+                control.device.clone(),
+                control.name.clone(),
+                control.layer.clone(),
+            ),
+            control,
+        );
+    }
+
+    Ok(map)
 }
 
 #[derive(Deserialize, Debug)]
 pub struct Profile {
     #[serde(skip)]
     pub name: String,
-    controls: Vec<ProfileControl>,
+    #[serde(deserialize_with = "deserialize_profile_controls")]
+    controls: HashMap<(String, String, String), ProfileControl>,
 }
 
 impl Profile {
-    fn get_control<'a>(&'a self, device: &str, control: &Control) -> Option<&'a ProfileControl> {
-        let info = match control {
-            Control::Continuous(control) => &control.info,
-            Control::Key(control) => &control.info,
-        };
-
-        for profile_control in &self.controls {
-            if profile_control.device == device
-                && profile_control.layer == info.layer
-                && profile_control.name == info.name
-            {
-                return Some(&profile_control);
-            }
-        }
-
-        None
+    fn get_control<'a>(
+        &'a self,
+        device: &str,
+        name: &str,
+        layer: &str,
+    ) -> Option<&'a ProfileControl> {
+        self.controls
+            .get(&(device.to_string(), name.to_string(), layer.to_string()))
     }
 
     pub fn verify_controls(&self, devices: &Vec<Device>) -> Result<(), String> {
         for device in devices {
             match device.controls.lock() {
                 Ok(controls) => {
-                    for control in controls.iter() {
-                        if let Some(profile_control) = self.get_control(&device.name, control) {
-                            ()
+                    for hw in controls.iter() {
+                        match hw {
+                            Hardware::Continuous(hw) => {
+                                for (layer, control) in &hw.layers {
+                                    if let Some(profile_control) =
+                                        self.get_control(&device.name, &hw.name, &layer)
+                                    {
+                                        ()
+                                    }
+                                }
+                            }
+                            Hardware::Key(hw) => {
+                                for (layer, control) in &hw.layers {
+                                    if let Some(profile_control) =
+                                        self.get_control(&device.name, &hw.name, &layer)
+                                    {
+                                        ()
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -63,14 +97,20 @@ impl Profile {
         connection: &mut MidiOutputConnection,
         state: &State,
         device: &str,
-        controls: &mut Vec<Control>,
+        controls: &mut Vec<Hardware>,
         force: bool,
     ) {
-        for control in controls.iter_mut() {
-            if let Some(profile_control) = self.get_control(device, &control) {
-                match control {
-                    Control::Continuous(control) => (),
-                    Control::Key(control) => if control.display {},
+        for hw in controls.iter_mut() {
+            match hw {
+                Hardware::Continuous(hw) => {
+                    for (layer, control) in hw.layers.iter_mut() {
+                        if let Some(profile_control) = self.get_control(device, &hw.name, layer) {}
+                    }
+                }
+                Hardware::Key(hw) => {
+                    for (layer, control) in hw.layers.iter_mut() {
+                        if let Some(profile_control) = self.get_control(device, &hw.name, layer) {}
+                    }
                 }
             }
         }

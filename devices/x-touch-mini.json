@@ -3,324 +3,415 @@
   "controls": [
     {
       "name": "Encoder 1",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 1,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 1,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 2",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 2,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 2,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 3",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 3,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 3,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 4",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 4,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 4,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 5",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 5,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 5,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 6",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 6,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 6,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 7",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 7,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 7,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 8",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 8,
-      "min": 0,
-      "max": 127,
-      "display": true
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 8,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Fader",
-      "layer": "A",
-      "channel": 11,
       "type": "cc",
-      "control": 9,
-      "min": 0,
-      "max": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "control": 9,
+          "min": 0,
+          "max": 127
+        }
+      }
     },
     {
       "name": "Encoder 1 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 0,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 0,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Encoder 2 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 1,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 1,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Encoder 3 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 2,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 2,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Encoder 4 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 3,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 3,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Encoder 5 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 4,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 4,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Encoder 6 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 5,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 5,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Encoder 7 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 6,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 6,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Encoder 8 Button",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 7,
-      "off": 0,
-      "on": 127
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 7,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 1",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 8,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 8,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 2",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 9,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 9,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 3",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 10,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 10,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 4",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 11,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 11,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 5",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 12,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 12,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 6",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 13,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 13,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 7",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 14,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 14,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 8",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 15,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 15,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 9",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 16,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 16,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 10",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 17,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 17,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 11",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 18,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 18,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 12",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 19,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 19,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 13",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 20,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 20,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 14",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 21,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 21,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 15",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 22,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 22,
+          "off": 0,
+          "on": 127
+        }
+      }
     },
     {
       "name": "Button 16",
-      "layer": "A",
-      "channel": 11,
       "type": "key",
-      "note": 23,
-      "off": 0,
-      "on": 127,
-      "display": true
+      "display": true,
+      "layers": {
+        "A": {
+          "channel": 11,
+          "note": 23,
+          "off": 0,
+          "on": 127
+        }
+      }
     }
   ]
 }

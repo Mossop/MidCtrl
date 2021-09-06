@@ -13,19 +13,29 @@ use std::{
 
 use lightroom::Lightroom;
 use midi::{
-    controls::Control,
+    controls::ButtonState,
     device::{devices, Device},
 };
 use profile::Profiles;
 use state::State;
 
+use crate::lightroom::OutgoingMessage;
+
 use self::state::{Module, Value};
 
 pub enum ControlMessage {
     Reset,
-    ControlChange {
+    ContinuousChange {
         device: String,
-        control: Control,
+        control: String,
+        layer: String,
+        value: f64,
+    },
+    NoteChange {
+        device: String,
+        control: String,
+        layer: String,
+        state: ButtonState,
     },
     StateChange {
         module: Module,
@@ -68,11 +78,6 @@ impl Controller {
         }
     }
 
-    fn control_updated(&mut self, device: String, control: Control) {
-        // Generate action from profile
-        // Maybe dispatch to lightroom
-    }
-
     fn update_profile(&mut self) {
         // Select the new profile.
         let profile = match self.profiles.select_new_profile(&self.state) {
@@ -82,7 +87,9 @@ impl Controller {
                     (Module::Internal, Value::String(profile.name.clone())),
                 );
 
-                // Send message about changed profile.
+                self.lightroom.send(OutgoingMessage::Notification {
+                    message: format!("Changed to profile {}", profile.name),
+                });
                 profile
             }
             None => match self.profiles.current_profile() {
@@ -128,10 +135,7 @@ impl Controller {
             match message {
                 ControlMessage::Reset => self.reset_state(),
                 ControlMessage::StateChange { module, state } => self.update_state(module, state),
-                ControlMessage::ControlChange { device, control } => {
-                    log::trace!("Saw control change {:?} on device {}", control, device);
-                    self.control_updated(device, control)
-                }
+                _ => (),
             }
         }
     }

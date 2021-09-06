@@ -30,7 +30,9 @@ pub enum IncomingMessage {
 #[derive(Serialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename_all = "lowercase")]
-pub enum OutgoingMessage {}
+pub enum OutgoingMessage {
+    Notification { message: String },
+}
 
 pub struct Incoming {
     receiver: Receiver<IncomingMessage>,

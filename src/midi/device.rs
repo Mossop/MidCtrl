@@ -10,12 +10,12 @@ use serde::Deserialize;
 
 use crate::{utils::iter_json, ControlMessage};
 
-use super::controls::{Control, KeyState};
+use super::controls::{ButtonState, Hardware};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct DeviceConfig {
     pub name: String,
-    pub controls: Vec<Control>,
+    pub controls: Vec<Hardware>,
 }
 
 pub struct Device {
@@ -23,7 +23,7 @@ pub struct Device {
     // Required to keep the input connection open.
     _connection: MidiInputConnection<()>,
     pub output: Option<MidiOutputConnection>,
-    pub controls: Arc<Mutex<Vec<Control>>>,
+    pub controls: Arc<Mutex<Vec<Hardware>>>,
 }
 
 impl Device {
@@ -50,9 +50,15 @@ impl Device {
                 if let Some(ref mut output) = output {
                     for control in config.controls.iter_mut() {
                         match control {
-                            Control::Continuous(ref mut control) => control.update(output, 0, true),
-                            Control::Key(ref mut control) => {
-                                control.update(output, KeyState::Off, true)
+                            Hardware::Continuous(ref mut hw) => {
+                                for control in hw.layers.values_mut() {
+                                    control.update(output, 0, true);
+                                }
+                            }
+                            Hardware::Key(ref mut hw) => {
+                                for control in hw.layers.values_mut() {
+                                    control.update(output, ButtonState::Off, true);
+                                }
                             }
                         }
                     }
@@ -97,52 +103,66 @@ impl Device {
         device: String,
         message: MidiMessage,
         sender: &Sender<ControlMessage>,
-        controls: &'a Arc<Mutex<Vec<Control>>>,
+        controls: &'a Arc<Mutex<Vec<Hardware>>>,
     ) -> Result<(), Box<dyn Error + 'a>> {
         let mut controls = controls.lock()?;
 
         match message {
             MidiMessage::ControlChange(channel, event) => {
-                for control in controls.iter_mut() {
-                    if let Control::Continuous(control) = control {
-                        if control.channel == channel && control.control == event.control {
-                            control.state = event.value;
+                for hw in controls.iter_mut() {
+                    if let Hardware::Continuous(hw) = hw {
+                        for (layer, control) in hw.layers.iter_mut() {
+                            if control.channel == channel && control.control == event.control {
+                                control.state = event.value;
+                                let value: f64 = (event.value - control.min).into();
+                                let range: f64 = (control.max - control.min).into();
 
-                            sender.send(ControlMessage::ControlChange {
-                                device: device,
-                                control: Control::Continuous(control.clone()),
-                            })?;
-                            break;
+                                sender.send(ControlMessage::ContinuousChange {
+                                    device,
+                                    control: hw.name.clone(),
+                                    layer: String::from(layer),
+                                    value: value / range,
+                                })?;
+                                return Ok(());
+                            }
                         }
                     }
                 }
             }
             MidiMessage::NoteOn(channel, event) => {
-                for control in controls.iter_mut() {
-                    if let Control::Key(control) = control {
-                        if control.channel == channel && control.note == event.key {
-                            control.state = KeyState::On;
+                for hw in controls.iter_mut() {
+                    if let Hardware::Key(hw) = hw {
+                        for (layer, control) in hw.layers.iter_mut() {
+                            if control.channel == channel && control.note == event.key {
+                                control.state = ButtonState::On;
 
-                            sender.send(ControlMessage::ControlChange {
-                                device: device,
-                                control: Control::Key(control.clone()),
-                            })?;
-                            break;
+                                sender.send(ControlMessage::NoteChange {
+                                    device,
+                                    control: hw.name.clone(),
+                                    layer: String::from(layer),
+                                    state: ButtonState::On,
+                                })?;
+                                return Ok(());
+                            }
                         }
                     }
                 }
             }
             MidiMessage::NoteOff(channel, event) => {
-                for control in controls.iter_mut() {
-                    if let Control::Key(control) = control {
-                        if control.channel == channel && control.note == event.key {
-                            control.state = KeyState::Off;
+                for hw in controls.iter_mut() {
+                    if let Hardware::Key(hw) = hw {
+                        for (layer, control) in hw.layers.iter_mut() {
+                            if control.channel == channel && control.note == event.key {
+                                control.state = ButtonState::Off;
 
-                            sender.send(ControlMessage::ControlChange {
-                                device: device,
-                                control: Control::Key(control.clone()),
-                            })?;
-                            break;
+                                sender.send(ControlMessage::NoteChange {
+                                    device,
+                                    control: hw.name.clone(),
+                                    layer: String::from(layer),
+                                    state: ButtonState::Off,
+                                })?;
+                                return Ok(());
+                            }
                         }
                     }
                 }
