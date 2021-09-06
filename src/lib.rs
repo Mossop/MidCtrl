@@ -65,7 +65,7 @@ impl Controller {
         // Maybe dispatch to lightroom
     }
 
-    pub fn update_states(&mut self, module: Module, state: HashMap<String, Value>) {
+    pub fn update_state(&mut self, module: Module, state: HashMap<String, Value>) {
         // Update our state.
         for (k, v) in state {
             self.state.insert(k, (module.clone(), v));
@@ -88,6 +88,8 @@ impl Controller {
             },
         };
 
+        log::trace!("New state: {:?}", self.state);
+
         for device in self.devices.iter_mut() {
             match device.controls.lock() {
                 Ok(controls) => {
@@ -104,7 +106,7 @@ impl Controller {
         loop {
             let message = self.receiver.recv()?;
             match message {
-                ControlMessage::StateChange(module, state) => self.update_states(module, state),
+                ControlMessage::StateChange(module, state) => self.update_state(module, state),
                 ControlMessage::ControlChange => (),
             }
         }

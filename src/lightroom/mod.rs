@@ -25,7 +25,7 @@ impl Lightroom {
                 match message {
                     IncomingMessage::Test => (),
                     IncomingMessage::Disconnect => (),
-                    IncomingMessage::State(state) => {
+                    IncomingMessage::State { state } => {
                         if let Err(e) = control_sender
                             .send(ControlMessage::StateChange(Module::Lightroom, state))
                         {

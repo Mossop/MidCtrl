@@ -1,4 +1,6 @@
 local LrPathUtils = import "LrPathUtils"
+local LrDialogs = import "LrDialogs"
+local LrApplicationView = import "LrApplicationView"
 
 local logger = require("Logging")("Service")
 
@@ -20,8 +22,12 @@ function Service:init()
   logger:trace("Startup")
   self.running = true
 
-  IPC:init(function (message)
-    self:onMessage(message)
+  IPC:init(function (event, message)
+    if event == "message" then
+      self:onMessage(message)
+    elseif event == "connected" then
+      self:onConnected()
+    end
   end)
 
   Service:launchBinary()
@@ -45,6 +51,17 @@ function Service:shutdown()
 end
 
 function Service:onMessage(message)
+end
+
+function Service:onConnected()
+  LrDialogs.showBezel("Connected to MidiCtrl")
+
+  IPC:send({
+    type = "state",
+    state = {
+      module = LrApplicationView.getCurrentModuleName(),
+    },
+  })
 end
 
 return Service

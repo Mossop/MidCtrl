@@ -10,12 +10,12 @@ local IPC = {
   running = false,
   sender = nil,
   receiver = nil,
-  onMessage = nil,
+  eventHandler = nil,
 }
 
 function IPC:init(listener)
   self.running = true
-  self.onMessage = listener
+  self.eventHandler = listener
 
   IPC:startReceiver(61328)
   IPC:startSender(61327)
@@ -54,6 +54,10 @@ function IPC:startSender(port)
       onConnected = function(socket)
         logger:debug("connected")
         self.sender = socket
+
+        if self.receiver then
+          self.eventHandler("connected")
+        end
       end,
 
       onClosed = function(socket)
@@ -104,6 +108,10 @@ function IPC:startReceiver(port)
       onConnected = function(socket)
         logger:debug("connected")
         self.receiver = socket
+
+        if self.sender then
+          self.eventHandler("connected")
+        end
       end,
 
       onMessage = function(socket, data)
@@ -114,7 +122,7 @@ function IPC:startReceiver(port)
           return
         end
 
-        self.onMessage(message)
+        self.eventHandler("message", message)
       end,
 
       onClosed = function(socket)

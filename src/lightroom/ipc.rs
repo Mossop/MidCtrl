@@ -16,7 +16,7 @@ use crate::state::Value;
 #[serde(rename_all = "lowercase")]
 pub enum IncomingMessage {
     Test,
-    State(HashMap<String, Value>),
+    State { state: HashMap<String, Value> },
     Disconnect,
 }
 
