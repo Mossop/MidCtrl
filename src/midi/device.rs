@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::{utils::iter_json, ControlMessage};
 
-use super::controls::Control;
+use super::controls::{Control, KeyState};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct DeviceConfig {
@@ -30,7 +30,7 @@ impl Device {
     pub fn new(
         name: String,
         control_sender: Sender<ControlMessage>,
-        config: DeviceConfig,
+        mut config: DeviceConfig,
     ) -> Result<Option<Device>, Box<dyn Error>> {
         let midi_input = MidiInput::new("MidiCtrl")?;
         let midi_output = MidiOutput::new("MidiCtrl")?;
@@ -39,7 +39,7 @@ impl Device {
         for port in midi_output.ports() {
             let port_name = midi_output.port_name(&port)?;
             if config.name == port_name {
-                output = Some(port);
+                output = midi_output.connect(&port, "MidiCtrl").ok();
                 break;
             }
         }
@@ -47,6 +47,15 @@ impl Device {
         for port in midi_input.ports() {
             let port_name = midi_input.port_name(&port)?;
             if config.name == port_name {
+                if let Some(ref mut output) = output {
+                    for control in config.controls.iter_mut() {
+                        match control {
+                            Control::Continuous(ref mut control) => control.update(output, 0),
+                            Control::Key(ref mut control) => control.update(output, KeyState::Off),
+                        }
+                    }
+                }
+
                 let controls = Arc::new(Mutex::new(config.controls));
 
                 let receiver_controls = controls.clone();
@@ -63,7 +72,7 @@ impl Device {
                 let device = Device {
                     name,
                     _connection: connection,
-                    output: output.and_then(|port| midi_output.connect(&port, "MidiCtrl").ok()),
+                    output,
                     controls: controls,
                 };
 
