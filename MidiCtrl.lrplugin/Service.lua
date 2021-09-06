@@ -23,7 +23,12 @@ function Service:init()
   logger:trace("Startup")
   self.running = true
 
-  State:init()
+  State:init(function(update)
+    IPC:send({
+      type = "state",
+      state = update,
+    })
+  end)
 
   IPC:init(function (event, message)
     if event == "message" then
@@ -31,13 +36,6 @@ function Service:init()
     elseif event == "connected" then
       self:onConnected()
     end
-  end)
-
-  State:watch(function(update)
-    IPC:send({
-      type = "state",
-      state = update,
-    })
   end)
 
   Service:launchBinary()
@@ -75,10 +73,7 @@ function Service:onConnected()
       type = "reset",
     })
 
-    IPC:send({
-      type = "state",
-      state = State:getState(),
-    })
+    State:rebuildState()
   end)
 end
 

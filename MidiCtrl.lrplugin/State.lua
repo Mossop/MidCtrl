@@ -7,90 +7,165 @@ local LrFileUtils = import "LrFileUtils"
 
 local Utils = require "Utils"
 local logger = require("Logging")("State")
-local json = require "json"
 
-local State = {
-  running = true,
-  params = {},
-}
-
-function State:init()
-  local paramsFile = LrPathUtils.child(_PLUGIN.path, "params.json")
-  local data = LrFileUtils.readFile(paramsFile)
-
-  local success, params = Utils.jsonDecode(logger, data)
-  if not success then
-    return
-  end
-
-  self.params = params
-end
-
-function State:getPhotoState()
-  local state = {}
+local function currentPhoto()
   local catalog = LrApplication.activeCatalog()
   local module = LrApplicationView.getCurrentModuleName()
   local photo = catalog:getTargetPhoto()
 
   if not photo then
-    return state
+    return nil
   end
 
   if module ~= "develop" then
     local photos = catalog:getTargetPhotos()
     if photos[2] then
+      return nil
+    end
+  end
+
+  return photo
+end
+
+local State = {
+  running = true,
+  params = {},
+  state = {},
+}
+
+function State:init(listener)
+  self.listener = listener
+
+  local paramsFile = LrPathUtils.child(_PLUGIN.path, "params.json")
+  local data = LrFileUtils.readFile(paramsFile)
+
+  local success, params = Utils.jsonDecode(logger, data)
+  if success then
+    self.params = params
+  end
+
+  self:watch()
+end
+
+function State:buildPhotoState(photo)
+  Utils.runAsync(logger, "build photo state", function()
+    local state = {}
+    local catalog = LrApplication.activeCatalog()
+    local module = LrApplicationView.getCurrentModuleName()
+    local photo = catalog:getTargetPhoto()
+
+    if not photo then
+      logger:info("No photo")
       return state
     end
-  end
 
-  local developState = photo:getDevelopSettings()
-
-  for i, param in ipairs(self.params) do
-    local value = nil
-
-    if param["type"] == "develop" then
-      value = developState[param["parameter"]]
+    if module ~= "develop" then
+      local photos = catalog:getTargetPhotos()
+      if photos[2] then
+        logger:info("Multiple photos")
+        return state
+      end
     end
 
-    if value ~= nil then
-      local range = param["max"] - param["min"]
-      value = (value - param["min"]) / range
+    for i, param in ipairs(self.params) do
+      local value = nil
+
+      if param["type"] == "develop" and module == "develop" then
+        value = LrDevelopController.getValue(param["parameter"])
+        local range = param["max"] - param["min"]
+        value = (value - param["min"]) / range
+      end
+
+      state[param["parameter"]] = value
     end
 
-    state[param["parameter"]] = value
+    self:setStates(state)
+  end)
+end
+
+function State:setStates(newState)
+  local changed = false
+  local updates = {}
+
+  for k, v in pairs(newState) do
+    if self.state[k] ~= v then
+      self.state[k] = v
+      updates[k] = v
+      changed = true
+    end
   end
 
-  return state
+  if changed then
+    self.listener(updates)
+  end
+end
+
+function State:rebuildState()
+  self.state = {}
+
+  local photo = currentPhoto()
+  if photo then
+    self:buildPhotoState(photo)
+  end
+
+  self:setStates({
+    module = LrApplicationView.getCurrentModuleName()
+  })
 end
 
 function State:getState()
-  local state = self:getPhotoState()
-  state.module = LrApplicationView.getCurrentModuleName()
-
-  return state
+  return self.state
 end
 
 function State:disconnect()
   self.running = false
 end
 
-function State:watch(listener)
+function State:enterModule(context, module)
+  self:setStates({
+    module = LrApplicationView.getCurrentModuleName()
+  })
+
+  if module == "develop" then
+    LrDevelopController.addAdjustmentChangeObserver(context, {}, function()
+      self:buildPhotoState(currentPhoto())
+    end)
+  end
+end
+
+local function photosMatch(a, b)
+  if a == nil then
+    if b == nil then
+      return true
+    else
+      return false
+    end
+  elseif b == nil then
+    return false
+  else
+    return a.localIdentifier == b.localIdentifier
+  end
+end
+
+function State:watch()
   Utils.runAsync(logger, "watch state", function(context)
     local module = LrApplicationView.getCurrentModuleName()
+    local photo = currentPhoto()
+
+    self:enterModule(context, module)
 
     while self.running do
-      local hasUpdate = false
-      local update = {}
-
       local newModule = LrApplicationView.getCurrentModuleName()
-      if newModule ~= module then
-        update.module = newModule
-        hasUpdate = true
-        module = newModule
-      end
+      local newPhoto = currentPhoto()
 
-      if hasUpdate then
-        listener(update)
+      if newModule ~= module then
+        module = newModule
+        self:enterModule(context, module)
+        photo = newPhoto
+        self:buildPhotoState(photo)
+      elseif not photosMatch(newPhoto, photo) then
+        photo = newPhoto
+        self:buildPhotoState(photo)
       end
 
       LrTasks.sleep(0.2)

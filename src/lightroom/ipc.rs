@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::{
+    cmp::max,
     collections::HashMap,
     error::Error,
     io::{BufRead, BufReader, ErrorKind, Write},
@@ -59,7 +60,7 @@ fn open_stream(port: u16) -> Result<TcpStream, Box<dyn Error>> {
             Err(e) => match e.kind() {
                 ErrorKind::ConnectionRefused | ErrorKind::TimedOut => {
                     thread::sleep(Duration::from_millis(backoff));
-                    backoff = backoff * 2;
+                    backoff = max(1000, backoff + 100);
                 }
                 _ => return Err(Box::new(e)),
             },
@@ -73,7 +74,7 @@ fn open_outgoing_stream(
 ) -> Result<bool, Box<dyn Error>> {
     let stream = open_stream(port)?;
 
-    log::trace!("IPC outgoing stream connected");
+    log::debug!("IPC outgoing stream connected");
 
     let read_stream = stream.try_clone()?;
 
@@ -98,7 +99,7 @@ fn open_outgoing_stream(
         guard.take();
     }
 
-    log::trace!("IPC outgoing stream closed");
+    log::debug!("IPC outgoing stream closed");
 
     Ok(true)
 }
@@ -109,7 +110,7 @@ fn open_incoming_stream(
 ) -> Result<bool, Box<dyn Error>> {
     let stream = open_stream(port)?;
 
-    log::trace!("IPC incoming stream connected");
+    log::debug!("IPC incoming stream connected");
 
     let reader = BufReader::new(stream);
     let lines = reader.lines();
@@ -124,7 +125,7 @@ fn open_incoming_stream(
         }
     }
 
-    log::trace!("IPC incoming stream closed");
+    log::debug!("IPC incoming stream closed");
 
     Ok(true)
 }

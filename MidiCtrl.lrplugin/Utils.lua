@@ -31,7 +31,7 @@ function Utils.runWithWriteAccess(logger, action, func)
 end
 
 function Utils.runAsync(logger, action, func)
-  LrFunctionContext.postAsyncTaskWithContext("init", function(context)
+  LrFunctionContext.postAsyncTaskWithContext(action, function(context)
     Utils.logFailures(context, logger, action)
 
     func(context)

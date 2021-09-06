@@ -44,8 +44,6 @@ fn deserialize_channel<'de, D: Deserializer<'de>>(de: D) -> Result<Channel, D::E
 pub struct ControlInfo {
     name: String,
     layer: Option<String>,
-    #[serde(default)]
-    display: bool,
 }
 
 impl PartialEq for ControlInfo {
@@ -105,6 +103,8 @@ pub struct KeyControl {
     note: MidiNote,
     off: u8,
     on: u8,
+    #[serde(default)]
+    display: bool,
     #[serde(skip)]
     state: KeyState,
 }
