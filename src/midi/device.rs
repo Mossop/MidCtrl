@@ -10,7 +10,7 @@ use midi_control::MidiMessage;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
 use serde::Deserialize;
 
-use crate::ControlMessage;
+use crate::{utils::iter_json, ControlMessage};
 
 use super::controls::Control;
 
@@ -103,25 +103,11 @@ impl Device {
     }
 }
 
-fn read_device_config(
-    entry: Result<DirEntry, io::Error>,
-) -> Result<Option<DeviceConfig>, Box<dyn Error>> {
-    let entry = entry?;
-
-    let file_type = entry.file_type()?;
-    if !file_type.is_file() {
-        return Ok(None);
-    }
-
-    let file = File::open(entry.path())?;
-    Ok(Some(serde_json::from_reader(file)?))
-}
-
 pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> Vec<Device> {
     let mut devices = Vec::new();
 
     let dir = root.join("devices");
-    let entries = match read_dir(dir) {
+    let entries = match iter_json::<DeviceConfig>(&dir) {
         Ok(entries) => entries,
         Err(e) => {
             log::error!("Failed to read devices directory: {}", e);
@@ -129,16 +115,7 @@ pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> Vec<Device> {
         }
     };
 
-    for entry in entries {
-        let config = match read_device_config(entry) {
-            Ok(Some(config)) => config,
-            Ok(None) => continue,
-            Err(e) => {
-                log::error!("Failed to read devices directory: {}", e);
-                continue;
-            }
-        };
-
+    for (_, config) in entries {
         match Device::new(sender.clone(), config) {
             Ok(Some(device)) => {
                 log::debug!("Connected to MIDI device {}", device.name);

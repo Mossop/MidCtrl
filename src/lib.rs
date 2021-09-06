@@ -2,6 +2,7 @@ mod lightroom;
 mod midi;
 mod profile;
 mod state;
+pub mod utils;
 
 use std::{
     collections::HashMap,
@@ -71,23 +72,31 @@ impl Controller {
         }
 
         // Select the new profile.
-        if let Some(profile) = self.profiles.select_profile(&self.state) {
-            self.state.insert(
-                String::from("profile"),
-                (Module::Internal, Value::String(profile.name.clone())),
-            );
+        let profile = match self.profiles.select_new_profile(&self.state) {
+            Some(profile) => {
+                self.state.insert(
+                    String::from("profile"),
+                    (Module::Internal, Value::String(profile.name.clone())),
+                );
 
-            // Update our MIDI device displays.
-            for device in self.devices.iter_mut() {
-                match device.controls.lock() {
-                    Ok(controls) => {
-                        if let Some(ref mut output) = device.output {
-                            profile.update_controls(output, &controls);
-                        }
-                    }
-                    Err(e) => log::error!("Failed to lock controls for update: {}", e),
-                };
+                // Send message about changed profile.
+                profile
             }
+            None => match self.profiles.current_profile() {
+                Some(profile) => profile,
+                None => return,
+            },
+        };
+
+        for device in self.devices.iter_mut() {
+            match device.controls.lock() {
+                Ok(controls) => {
+                    if let Some(ref mut output) = device.output {
+                        profile.update_controls(output, &controls);
+                    }
+                }
+                Err(e) => log::error!("Failed to lock controls for update: {}", e),
+            };
         }
     }
 
