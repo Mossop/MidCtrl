@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     error::Error,
-    io::{BufRead, BufReader, Write},
+    io::{BufRead, BufReader, ErrorKind, Write},
     net::{Ipv4Addr, TcpStream},
     sync::mpsc::{channel, Receiver, Sender},
     thread,
@@ -50,11 +50,28 @@ impl Iterator for Incoming {
     }
 }
 
+fn open_stream(port: u16) -> Result<TcpStream, Box<dyn Error>> {
+    let mut backoff = 100;
+    loop {
+        match TcpStream::connect((Ipv4Addr::LOCALHOST, port)) {
+            Ok(stream) => return Ok(stream),
+            Err(e) => match e.kind() {
+                ErrorKind::ConnectionRefused | ErrorKind::TimedOut => {
+                    thread::sleep(Duration::from_millis(backoff));
+                    backoff = backoff * 2;
+                }
+                _ => return Err(Box::new(e)),
+            },
+        }
+    }
+}
+
 fn open_outgoing_stream(
     port: u16,
     receiver: &Receiver<OutgoingMessage>,
 ) -> Result<bool, Box<dyn Error>> {
-    let mut stream = TcpStream::connect((Ipv4Addr::LOCALHOST, port))?;
+    let mut stream = open_stream(port)?;
+
     log::trace!("IPC outgoing stream connected");
 
     for message in receiver.iter() {
@@ -62,12 +79,13 @@ fn open_outgoing_stream(
         let mut data = serde_json::to_vec(&message)?;
         data.push(0x0a);
         stream.write_all(&data)?;
+        stream.flush()?;
 
         match message {
             OutgoingMessage::Disconnect => {
                 return Ok(false);
             }
-            _ => stream.flush()?,
+            _ => (),
         }
     }
 
@@ -78,7 +96,8 @@ fn open_incoming_stream(
     port: u16,
     sender: Sender<IncomingMessage>,
 ) -> Result<bool, Box<dyn Error>> {
-    let stream = TcpStream::connect((Ipv4Addr::LOCALHOST, port))?;
+    let stream = open_stream(port)?;
+
     log::trace!("IPC incoming stream connected");
 
     let reader = BufReader::new(stream);
