@@ -114,10 +114,20 @@ pub struct ContinuousControl {
     pub layers: HashMap<String, ContinuousLayer>,
 }
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Deserialize, Clone, PartialEq, Debug)]
+#[serde(from = "bool")]
 pub enum KeyState {
     Off,
     On,
+}
+
+impl From<bool> for KeyState {
+    fn from(val: bool) -> Self {
+        match val {
+            true => KeyState::On,
+            false => KeyState::Off,
+        }
+    }
 }
 
 impl Default for KeyState {

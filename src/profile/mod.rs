@@ -1,8 +1,14 @@
+pub mod controls;
+
 use midir::MidiOutputConnection;
 use serde::Deserialize;
 use serde_json::Map;
+use serde_json::Value as JsonValue;
 use std::{collections::HashMap, error::Error, path::Path};
 
+use crate::midi::controls::ContinuousLayer;
+use crate::midi::controls::KeyLayer;
+use crate::profile::controls::ContinuousSource;
 use crate::{
     midi::{
         controls::{Control, LayerControl},
@@ -12,47 +18,28 @@ use crate::{
     utils::iter_json,
 };
 
+use self::controls::ContinuousAction;
+use self::controls::ContinuousProfile;
+use self::controls::ControlLayerInfo;
+use self::controls::ControlProfile;
+use self::controls::KeyAction;
+use self::controls::KeyProfile;
+use self::controls::KeySource;
+
 pub enum Action {
     SetParameter { name: String, value: Value },
-}
-
-#[derive(Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
-pub struct ControlLayerInfo {
-    device: String,
-    control: String,
-    layer: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct ContinuousLayerAction {
-    #[serde(flatten)]
-    pub info: ControlLayerInfo,
-    pub parameter: String,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub struct KeyLayerAction {
-    #[serde(flatten)]
-    pub info: ControlLayerInfo,
-    #[serde(default)]
-    pub display: Option<String>,
-}
-
-#[derive(Deserialize, Debug, Clone)]
-pub enum ControlLayerAction {
-    Continuous(ContinuousLayerAction),
-    Key(KeyLayerAction),
+    Sequence(Vec<Action>),
 }
 
 #[derive(Debug, Clone)]
 pub struct Profile {
     pub name: String,
-    controls: HashMap<ControlLayerInfo, ControlLayerAction>,
+    controls: HashMap<ControlLayerInfo, ControlProfile>,
 }
 
 #[derive(Deserialize, Debug)]
 struct ProfileConfig {
-    controls: Vec<Map<String, serde_json::Value>>,
+    controls: Vec<Map<String, JsonValue>>,
 }
 
 fn get_control(devices: &Vec<Device>, info: &ControlLayerInfo) -> Option<LayerControl> {
@@ -79,12 +66,12 @@ impl ProfileConfig {
     ) -> Result<Profile, Box<dyn Error>> {
         let mut map = HashMap::new();
 
-        for action in self.controls {
+        for control in self.controls {
             let info: ControlLayerInfo =
-                match serde_json::from_value(serde_json::Value::Object(action.clone())) {
+                match serde_json::from_value(JsonValue::Object(control.clone())) {
                     Ok(info) => info,
                     Err(e) => {
-                        log::error!("Failed to decode control action: {}", e);
+                        log::error!("Failed to decode control profile: {}", e);
                         continue;
                     }
                 };
@@ -92,12 +79,12 @@ impl ProfileConfig {
             let action = match get_control(devices, &info) {
                 Some(layer_control) => match layer_control {
                     LayerControl::Continuous(_) => {
-                        match serde_json::from_value::<ContinuousLayerAction>(
-                            serde_json::Value::Object(action),
-                        ) {
-                            Ok(action) => ControlLayerAction::Continuous(action),
+                        match serde_json::from_value::<ContinuousProfile>(JsonValue::Object(
+                            control,
+                        )) {
+                            Ok(control_profile) => ControlProfile::Continuous(control_profile),
                             Err(e) => {
-                                log::error!("Failed to decode control action: {}", e);
+                                log::error!("Failed to decode control profile: {}", e);
                                 continue;
                             }
                         }
@@ -133,34 +120,81 @@ impl ProfileConfig {
     }
 }
 
-fn perform_update(
+fn perform_continuous_update(
     connection: &mut MidiOutputConnection,
     state: &State,
-    layer_control: LayerControl,
-    action: ControlLayerAction,
+    control: &ContinuousLayer,
+    control_profile: &ContinuousProfile,
     force: bool,
 ) {
-    match (layer_control.clone(), action.clone()) {
-        (LayerControl::Continuous(control), ControlLayerAction::Continuous(action)) => {
-            if let Some((_, Some(Value::Float(value)))) = state.get(&action.parameter) {
-                control.update(connection, control.state_from_value(*value), force);
+    let source = match &control_profile.source {
+        Some(source) => source.resolve(state),
+        None => match control_profile.action.resolve(state) {
+            Some(ContinuousAction::Parameter(parameter)) => {
+                Some(ContinuousSource::Parameter(parameter))
             }
-        }
-        _ => log::warn!(
-            "Unable to apply action {:?} to control {:?}",
-            action,
-            layer_control
-        ),
+            _ => None,
+        },
+    };
+
+    if let Some(source) = source {
+        let value = match source {
+            ContinuousSource::Constant(value) => value,
+            ContinuousSource::Parameter(parameter) => {
+                if let Some((_, Some(Value::Float(value)))) = state.get(&parameter) {
+                    *value
+                } else {
+                    return;
+                }
+            }
+        };
+
+        control.update(connection, control.state_from_value(value), force);
+    }
+}
+
+fn perform_key_update(
+    connection: &mut MidiOutputConnection,
+    state: &State,
+    control: &KeyLayer,
+    control_profile: &KeyProfile,
+    force: bool,
+) {
+    let source = match &control_profile.source {
+        Some(source) => source.resolve(state),
+        None => match control_profile
+            .action
+            .resolve(state)
+            .and_then(|actions| actions.single_action())
+        {
+            Some(KeyAction::Parameter(parameter)) => Some(KeySource::Parameter(parameter)),
+            _ => None,
+        },
+    };
+
+    if let Some(source) = source {
+        let value = match source {
+            KeySource::Constant(value) => value,
+            KeySource::Parameter(parameter) => {
+                if let Some((_, Some(Value::Boolean(value)))) = state.get(&parameter) {
+                    *value
+                } else {
+                    return;
+                }
+            }
+        };
+
+        control.update(connection, value.into(), force);
     }
 }
 
 impl Profile {
-    fn get_action<'a>(
+    fn get_control_profile<'a>(
         &'a self,
         device: &str,
         name: &str,
         layer: &str,
-    ) -> Option<&'a ControlLayerAction> {
+    ) -> Option<&'a ControlProfile> {
         let info = ControlLayerInfo {
             device: String::from(device),
             control: String::from(name),
@@ -172,26 +206,33 @@ impl Profile {
 
     pub fn continuous_action(
         &self,
+        state: &State,
         device: &str,
         name: &str,
         layer: &str,
         value: f64,
     ) -> Option<Action> {
-        let control_action = self.get_action(device, name, layer)?;
+        let control_profile = self.get_control_profile(device, name, layer)?;
 
-        match control_action.clone() {
-            ControlLayerAction::Continuous(action) => Some(Action::SetParameter {
-                name: action.parameter.clone(),
-                value: Value::Float(value),
-            }),
+        match control_profile {
+            ControlProfile::Continuous(control_profile) => control_profile.action(state, value),
             _ => None,
         }
     }
 
-    pub fn key_action(&self, device: &str, name: &str, layer: &str) -> Option<Action> {
-        let control_action = self.get_action(device, name, layer)?;
+    pub fn key_action(
+        &self,
+        state: &State,
+        device: &str,
+        name: &str,
+        layer: &str,
+    ) -> Option<Action> {
+        let control_profile = self.get_control_profile(device, name, layer)?;
 
-        None
+        match control_profile {
+            ControlProfile::Key(control_profile) => control_profile.action(state),
+            _ => None,
+        }
     }
 
     pub fn update_controls(
@@ -206,12 +247,14 @@ impl Profile {
             match control {
                 Control::Continuous(continuous) => {
                     for (layer, layer_control) in &continuous.layers {
-                        if let Some(action) = self.get_action(device, &continuous.name, layer) {
-                            perform_update(
+                        if let Some(ControlProfile::Continuous(control_profile)) =
+                            self.get_control_profile(device, &continuous.name, layer)
+                        {
+                            perform_continuous_update(
                                 connection,
                                 state,
-                                LayerControl::Continuous(layer_control.clone()),
-                                action.clone(),
+                                layer_control,
+                                control_profile,
                                 force,
                             );
                         }
@@ -219,12 +262,14 @@ impl Profile {
                 }
                 Control::Key(key) => {
                     for (layer, layer_control) in &key.layers {
-                        if let Some(action) = self.get_action(device, &key.name, layer) {
-                            perform_update(
+                        if let Some(ControlProfile::Key(control_profile)) =
+                            self.get_control_profile(device, &key.name, layer)
+                        {
+                            perform_key_update(
                                 connection,
                                 state,
-                                LayerControl::Key(layer_control.clone()),
-                                action.clone(),
+                                layer_control,
+                                control_profile,
                                 force,
                             );
                         }
@@ -291,7 +336,7 @@ impl Profiles {
         profiles
     }
 
-    fn choose_profile(&mut self, state: Option<&State>) -> Option<String> {
+    fn choose_profile(&mut self, _state: Option<&State>) -> Option<String> {
         if self.profiles.contains_key("default") {
             return Some(String::from("default"));
         }

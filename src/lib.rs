@@ -150,24 +150,31 @@ impl Controller {
                     log::warn!("Attempting to set unknown parameter {}", name);
                 }
             }
+            Action::Sequence(actions) => {
+                for action in actions {
+                    self.perform_action(action);
+                }
+            }
         }
     }
 
     fn continuous_change(&mut self, device: String, control: String, layer: String, value: f64) {
         if let Some(profile) = self.profiles.current_profile() {
-            if let Some(action) = profile.continuous_action(&device, &control, &layer, value) {
+            if let Some(action) =
+                profile.continuous_action(&self.state, &device, &control, &layer, value)
+            {
                 self.perform_action(action);
             }
         }
     }
 
-    fn key_change(&mut self, device: String, control: String, layer: String, state: KeyState) {
-        if state == KeyState::Off {
+    fn key_change(&mut self, device: String, control: String, layer: String, key_state: KeyState) {
+        if key_state == KeyState::Off {
             return;
         }
 
         if let Some(profile) = self.profiles.current_profile() {
-            if let Some(action) = profile.key_action(&device, &control, &layer) {
+            if let Some(action) = profile.key_action(&self.state, &device, &control, &layer) {
                 self.perform_action(action);
             }
         }

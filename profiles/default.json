@@ -4,7 +4,7 @@
       "device": "x-touch-mini",
       "layer": "A",
       "control": "Encoder 1",
-      "parameter": "Exposure"
+      "action": "Exposure"
     }
   ]
 }
