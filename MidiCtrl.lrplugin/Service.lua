@@ -60,7 +60,21 @@ function Service:shutdown()
 end
 
 function Service:onMessage(message)
-  Utils.runAsync(logger, "connected", function()
+  Utils.runAsync(logger, "message handling", function()
+    local callbacks = {
+      notification = function()
+        LrDialogs.showBezel(message.message)
+      end,
+
+      setValue = function()
+        State:setValue(message.name, message.value)
+      end,
+    }
+
+    local cb = callbacks[message.type]
+    if cb then
+      cb()
+    end
   end)
 end
 

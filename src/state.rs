@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum Value {
     String(String),
@@ -16,4 +16,4 @@ pub enum Module {
     Lightroom,
 }
 
-pub type State = HashMap<String, (Module, Value)>;
+pub type State = HashMap<String, (Module, Option<Value>)>;

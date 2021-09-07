@@ -99,6 +99,27 @@ function State:rebuildState()
   })
 end
 
+function State:setValue(name, value)
+  local module = LrApplicationView.getCurrentModuleName()
+  local photo = currentPhoto()
+
+  for i, param in ipairs(self.params) do
+    if param["parameter"] == name then
+      if param["type"] == "develop" then
+        local range = param["max"] - param["min"]
+        local value = (value * range) + param["min"]
+
+        if module ~= "develop" then
+          LrApplicationView.switchToModule("develop")
+        end
+
+        LrDevelopController.startTracking(name)
+        LrDevelopController.setValue(name, value)
+      end
+    end
+  end
+end
+
 function State:getState()
   return self.state
 end

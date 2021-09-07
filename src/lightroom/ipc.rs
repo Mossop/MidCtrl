@@ -29,9 +29,10 @@ pub enum IncomingMessage {
 
 #[derive(Serialize, Debug)]
 #[serde(tag = "type")]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "camelCase")]
 pub enum OutgoingMessage {
     Notification { message: String },
+    SetValue { name: String, value: Value },
 }
 
 pub struct Incoming {

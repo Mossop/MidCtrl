@@ -13,10 +13,10 @@ use std::{
 
 use lightroom::Lightroom;
 use midi::{
-    controls::ButtonState,
+    controls::KeyState,
     device::{devices, Device},
 };
-use profile::Profiles;
+use profile::{Action, Profiles};
 use state::State;
 
 use crate::lightroom::OutgoingMessage;
@@ -31,11 +31,11 @@ pub enum ControlMessage {
         layer: String,
         value: f64,
     },
-    NoteChange {
+    KeyChange {
         device: String,
         control: String,
         layer: String,
-        state: ButtonState,
+        state: KeyState,
     },
     StateChange {
         module: Module,
@@ -62,7 +62,7 @@ impl Controller {
         if let Some(profile) = profiles.current_profile() {
             state.insert(
                 String::from("profile"),
-                (Module::Internal, Value::String(profile.name.clone())),
+                (Module::Internal, Some(Value::String(profile.name.clone()))),
             );
         }
 
@@ -78,18 +78,22 @@ impl Controller {
         }
     }
 
+    fn profile_changed(&mut self, profile: &str) {
+        self.state.insert(
+            String::from("profile"),
+            (Module::Internal, Some(Value::String(String::from(profile)))),
+        );
+
+        self.lightroom.send(OutgoingMessage::Notification {
+            message: format!("Changed to profile {}", profile),
+        });
+    }
+
     fn update_profile(&mut self) {
         // Select the new profile.
         let profile = match self.profiles.select_new_profile(&self.state) {
             Some(profile) => {
-                self.state.insert(
-                    String::from("profile"),
-                    (Module::Internal, Value::String(profile.name.clone())),
-                );
-
-                self.lightroom.send(OutgoingMessage::Notification {
-                    message: format!("Changed to profile {}", profile.name),
-                });
+                self.profile_changed(&profile.name);
                 profile
             }
             None => match self.profiles.current_profile() {
@@ -101,14 +105,9 @@ impl Controller {
         log::trace!("New state: {:?}", self.state);
 
         for device in self.devices.iter_mut() {
-            match device.controls.lock() {
-                Ok(ref mut controls) => {
-                    if let Some(ref mut output) = device.output {
-                        profile.update_controls(output, &self.state, &device.name, controls, false);
-                    }
-                }
-                Err(e) => log::error!("Failed to lock controls for update: {}", e),
-            };
+            if let Some(ref mut output) = device.output {
+                profile.update_controls(output, &self.state, &device.name, &device.controls, false);
+            }
         }
     }
 
@@ -120,13 +119,58 @@ impl Controller {
     fn update_state(&mut self, module: Module, state: HashMap<String, Option<Value>>) {
         // Update our state.
         for (k, v) in state {
-            match v {
-                Some(val) => self.state.insert(k, (module.clone(), val)),
-                None => self.state.remove(&k),
-            };
+            self.state.insert(k, (module.clone(), v));
         }
 
         self.update_profile();
+    }
+
+    fn set_internal_parameter(&mut self, name: String, value: Value) {
+        match (name.as_str(), value) {
+            ("profile", Value::String(val)) => {
+                if let Some(profile) = self.profiles.set_profile(&val) {
+                    self.profile_changed(&profile.name);
+                };
+            }
+            _ => log::warn!("Attempting to set unknown parameter {}", name),
+        }
+    }
+
+    fn perform_action(&mut self, action: Action) {
+        match action {
+            Action::SetParameter { name, value } => {
+                if let Some((module, _)) = self.state.get(&name) {
+                    match module {
+                        Module::Internal => self.set_internal_parameter(name, value),
+                        Module::Lightroom => self
+                            .lightroom
+                            .send(OutgoingMessage::SetValue { name, value }),
+                    }
+                } else {
+                    log::warn!("Attempting to set unknown parameter {}", name);
+                }
+            }
+        }
+    }
+
+    fn continuous_change(&mut self, device: String, control: String, layer: String, value: f64) {
+        if let Some(profile) = self.profiles.current_profile() {
+            if let Some(action) = profile.continuous_action(&device, &control, &layer, value) {
+                self.perform_action(action);
+            }
+        }
+    }
+
+    fn key_change(&mut self, device: String, control: String, layer: String, state: KeyState) {
+        if state == KeyState::Off {
+            return;
+        }
+
+        if let Some(profile) = self.profiles.current_profile() {
+            if let Some(action) = profile.key_action(&device, &control, &layer) {
+                self.perform_action(action);
+            }
+        }
     }
 
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
@@ -135,7 +179,18 @@ impl Controller {
             match message {
                 ControlMessage::Reset => self.reset_state(),
                 ControlMessage::StateChange { module, state } => self.update_state(module, state),
-                _ => (),
+                ControlMessage::ContinuousChange {
+                    device,
+                    control,
+                    layer,
+                    value,
+                } => self.continuous_change(device, control, layer, value),
+                ControlMessage::KeyChange {
+                    device,
+                    control,
+                    layer,
+                    state,
+                } => self.key_change(device, control, layer, state),
             }
         }
     }

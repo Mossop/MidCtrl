@@ -1,8 +1,4 @@
-use std::{
-    error::Error,
-    path::Path,
-    sync::{mpsc::Sender, Arc, Mutex},
-};
+use std::{error::Error, path::Path, sync::mpsc::Sender};
 
 use midi_control::MidiMessage;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
@@ -10,12 +6,12 @@ use serde::Deserialize;
 
 use crate::{utils::iter_json, ControlMessage};
 
-use super::controls::{ButtonState, Hardware};
+use super::controls::{Control, KeyState};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct DeviceConfig {
     pub name: String,
-    pub controls: Vec<Hardware>,
+    pub controls: Vec<Control>,
 }
 
 pub struct Device {
@@ -23,7 +19,7 @@ pub struct Device {
     // Required to keep the input connection open.
     _connection: MidiInputConnection<()>,
     pub output: Option<MidiOutputConnection>,
-    pub controls: Arc<Mutex<Vec<Hardware>>>,
+    pub controls: Vec<Control>,
 }
 
 impl Device {
@@ -50,23 +46,21 @@ impl Device {
                 if let Some(ref mut output) = output {
                     for control in config.controls.iter_mut() {
                         match control {
-                            Hardware::Continuous(ref mut hw) => {
-                                for control in hw.layers.values_mut() {
-                                    control.update(output, 0, true);
+                            Control::Continuous(ref mut continuous) => {
+                                for continuous_layer in continuous.layers.values_mut() {
+                                    continuous_layer.update(output, 0, true);
                                 }
                             }
-                            Hardware::Key(ref mut hw) => {
-                                for control in hw.layers.values_mut() {
-                                    control.update(output, ButtonState::Off, true);
+                            Control::Key(ref mut key) => {
+                                for key_layer in key.layers.values_mut() {
+                                    key_layer.update(output, KeyState::Off, true);
                                 }
                             }
                         }
                     }
                 }
 
-                let controls = Arc::new(Mutex::new(config.controls));
-
-                let receiver_controls = controls.clone();
+                let receiver_controls = config.controls.clone();
                 let device_name = name.clone();
                 let connection = midi_input.connect(
                     &port,
@@ -89,7 +83,7 @@ impl Device {
                     name,
                     _connection: connection,
                     output,
-                    controls: controls,
+                    controls: config.controls,
                 };
 
                 return Ok(Some(device));
@@ -103,25 +97,22 @@ impl Device {
         device: String,
         message: MidiMessage,
         sender: &Sender<ControlMessage>,
-        controls: &'a Arc<Mutex<Vec<Hardware>>>,
+        controls: &'a Vec<Control>,
     ) -> Result<(), Box<dyn Error + 'a>> {
-        let mut controls = controls.lock()?;
-
         match message {
             MidiMessage::ControlChange(channel, event) => {
-                for hw in controls.iter_mut() {
-                    if let Hardware::Continuous(hw) = hw {
-                        for (layer, control) in hw.layers.iter_mut() {
-                            if control.channel == channel && control.control == event.control {
-                                control.state = event.value;
-                                let value: f64 = (event.value - control.min).into();
-                                let range: f64 = (control.max - control.min).into();
-
+                for control in controls {
+                    if let Control::Continuous(continuous) = control {
+                        for (layer, continuous_layer) in &continuous.layers {
+                            if continuous_layer.channel == channel
+                                && continuous_layer.control == event.control
+                            {
+                                continuous_layer.set_value(event.value);
                                 sender.send(ControlMessage::ContinuousChange {
                                     device,
-                                    control: hw.name.clone(),
+                                    control: continuous.name.clone(),
                                     layer: String::from(layer),
-                                    value: value / range,
+                                    value: continuous_layer.value_from_state(event.value),
                                 })?;
                                 return Ok(());
                             }
@@ -130,17 +121,17 @@ impl Device {
                 }
             }
             MidiMessage::NoteOn(channel, event) => {
-                for hw in controls.iter_mut() {
-                    if let Hardware::Key(hw) = hw {
-                        for (layer, control) in hw.layers.iter_mut() {
-                            if control.channel == channel && control.note == event.key {
-                                control.state = ButtonState::On;
+                for control in controls {
+                    if let Control::Key(key) = control {
+                        for (layer, key_layer) in &key.layers {
+                            if key_layer.channel == channel && key_layer.note == event.key {
+                                key_layer.set_value(KeyState::On);
 
-                                sender.send(ControlMessage::NoteChange {
+                                sender.send(ControlMessage::KeyChange {
                                     device,
-                                    control: hw.name.clone(),
+                                    control: key.name.clone(),
                                     layer: String::from(layer),
-                                    state: ButtonState::On,
+                                    state: KeyState::On,
                                 })?;
                                 return Ok(());
                             }
@@ -149,17 +140,17 @@ impl Device {
                 }
             }
             MidiMessage::NoteOff(channel, event) => {
-                for hw in controls.iter_mut() {
-                    if let Hardware::Key(hw) = hw {
-                        for (layer, control) in hw.layers.iter_mut() {
-                            if control.channel == channel && control.note == event.key {
-                                control.state = ButtonState::Off;
+                for control in controls {
+                    if let Control::Key(key) = control {
+                        for (layer, key_layer) in &key.layers {
+                            if key_layer.channel == channel && key_layer.note == event.key {
+                                key_layer.set_value(KeyState::Off);
 
-                                sender.send(ControlMessage::NoteChange {
+                                sender.send(ControlMessage::KeyChange {
                                     device,
-                                    control: hw.name.clone(),
+                                    control: key.name.clone(),
                                     layer: String::from(layer),
-                                    state: ButtonState::Off,
+                                    state: KeyState::Off,
                                 })?;
                                 return Ok(());
                             }
