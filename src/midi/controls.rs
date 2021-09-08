@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Display,
     sync::{Arc, Mutex},
 };
 
@@ -119,6 +120,15 @@ pub struct ContinuousControl {
 pub enum KeyState {
     Off,
     On,
+}
+
+impl Display for KeyState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KeyState::On => write!(f, "On"),
+            KeyState::Off => write!(f, "Off"),
+        }
+    }
 }
 
 impl From<bool> for KeyState {

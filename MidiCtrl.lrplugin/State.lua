@@ -54,6 +54,10 @@ end
 function State:buildPhotoState(photo)
   if photo then
     local pickStatus = photo:getRawMetadata("pickStatus")
+    local rating = photo:getRawMetadata("rating")
+    if rating == nil then
+      rating = 0
+    end
 
     self:setStates({
       isPicked = pickStatus == 1,
@@ -61,6 +65,7 @@ function State:buildPhotoState(photo)
       isVirtualCopy = photo:getRawMetadata("isVirtualCopy"),
       isInStack = photo:getRawMetadata("isInStackInFolder"),
       isVideo = photo:getRawMetadata("isVideo"),
+      rating = rating,
     })
   else
     self:setStates({
@@ -69,6 +74,7 @@ function State:buildPhotoState(photo)
       isVirtualCopy = json.null,
       isInStack = json.null,
       isVideo = json.null,
+      rating = json.null,
     })
   end
 end
@@ -155,6 +161,15 @@ function State:setValue(name, value)
           photo:setRawMetadata("pickStatus", 0)
         end
       end
+    end)
+  end
+
+  if name == "rating" then
+    Utils.runWithWriteAccess(logger, "update metadata", function()
+      if value == 0 then
+        value = nil
+      end
+      photo:setRawMetadata("rating", value)
     end)
   end
 

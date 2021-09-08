@@ -107,11 +107,14 @@ impl Controller {
     }
 
     fn reset_state(&mut self) {
+        log::trace!("Resetting state");
         self.state.clear();
         self.update_profile();
     }
 
     fn update_state(&mut self, module: Module, state: HashMap<String, Option<Value>>) {
+        log::trace!("Updating state");
+
         // Update our state.
         for (k, v) in state {
             self.state.insert(k, (module.clone(), v));
@@ -154,6 +157,13 @@ impl Controller {
     }
 
     fn continuous_change(&mut self, device: String, control: String, layer: String, value: f64) {
+        log::trace!(
+            "Continuous control {} in layer {} on device {} changed to {}",
+            control,
+            layer,
+            device,
+            value
+        );
         if let Some(profile) = self.profiles.current_profile() {
             if let Some(action) =
                 profile.continuous_action(&self.state, &device, &control, &layer, value)
@@ -164,6 +174,13 @@ impl Controller {
     }
 
     fn key_change(&mut self, device: String, control: String, layer: String, key_state: KeyState) {
+        log::trace!(
+            "Key control {} in layer {} on device {} changed to {}",
+            control,
+            layer,
+            device,
+            key_state
+        );
         if let Some(profile) = self.profiles.current_profile() {
             if key_state == KeyState::Off {
                 if let Some(layer_control) =
@@ -196,7 +213,6 @@ impl Controller {
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
             let message = self.receiver.recv()?;
-            log::trace!("Received control message {:?}", message);
             match message {
                 ControlMessage::Reset => self.reset_state(),
                 ControlMessage::StateChange { module, state } => self.update_state(module, state),

@@ -17,6 +17,56 @@
       "layer": "A",
       "control": "Button 2",
       "action": { "toggle": "isRejected" }
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 9",
+      "source": { "condition": { "parameter": "rating", "value": 1 } },
+      "action": [
+        { "when": { "parameter": "rating", "value": 1 }, "result": { "parameter": "rating", "value": 0 } },
+        { "parameter": "rating", "value": 1 }
+      ]
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 10",
+      "source": { "condition": { "parameter": "rating", "value": 2 } },
+      "action": [
+        { "when": { "parameter": "rating", "value": 2 }, "result": { "parameter": "rating", "value": 0 } },
+        { "parameter": "rating", "value": 2 }
+      ]
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 11",
+      "source": { "condition": { "parameter": "rating", "value": 3 } },
+      "action": [
+        { "when": { "parameter": "rating", "value": 3 }, "result": { "parameter": "rating", "value": 0 } },
+        { "parameter": "rating", "value": 3 }
+      ]
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 12",
+      "source": { "condition": { "parameter": "rating", "value": 4 } },
+      "action": [
+        { "when": { "parameter": "rating", "value": 4 }, "result": { "parameter": "rating", "value": 0 } },
+        { "parameter": "rating", "value": 4 }
+      ]
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 13",
+      "source": { "condition": { "parameter": "rating", "value": 5 } },
+      "action": [
+        { "when": { "parameter": "rating", "value": 5 }, "result": { "parameter": "rating", "value": 0 } },
+        { "parameter": "rating", "value": 5 }
+      ]
     }
   ]
 }
