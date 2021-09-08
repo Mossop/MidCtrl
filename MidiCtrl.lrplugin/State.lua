@@ -77,14 +77,26 @@ function State:buildDevelopState(photo)
   Utils.runAsync(logger, "build photo state", function()
     local state = {}
     local module = LrApplicationView.getCurrentModuleName()
+    local developState = photo:getDevelopSettings()
 
     for i, param in ipairs(self.params) do
       local value = json.null
 
-      if photo and param["type"] == "develop" and module == "develop" then
-        value = LrDevelopController.getValue(param["parameter"])
-        local range = param["max"] - param["min"]
-        value = (value - param["min"]) / range
+      if photo and param["type"] == "develop" then
+        if module == "develop" then
+          value = LrDevelopController.getValue(param["parameter"])
+        elseif developState[param["parameter"] .. "2012"] ~= nil then
+          value = developState[param["parameter"] .. "2012"]
+        elseif developState[param["parameter"]] ~= nil then
+          value = developState[param["parameter"]]
+        else
+          logger:warn("Couldn't find develop parameter", param["parameter"])
+        end
+
+        if value ~= json.null then
+          local range = param["max"] - param["min"]
+          value = (value - param["min"]) / range
+        end
       end
 
       state[param["parameter"]] = value
@@ -228,7 +240,7 @@ function State:watch()
         self:buildDevelopState(photo)
         self:buildLibraryState()
       elseif not photosMatch(newPhoto, photo) then
-        if photo then
+        if newPhoto then
           logger:debug("Photo changed to", newPhoto:getFormattedMetadata("fileName"))
         else
           logger:debug("No photo selection")
