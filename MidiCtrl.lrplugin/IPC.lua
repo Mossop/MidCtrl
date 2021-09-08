@@ -67,6 +67,7 @@ function IPC:startSender(port)
         logger:debug("closed")
 
         if self.running then
+          self.eventHandler("disconnected")
           self:startSender(port)
         end
       end,
@@ -80,6 +81,9 @@ function IPC:startSender(port)
           logger:error("onError", err)
 
           if self.running then
+            self.eventHandler("disconnected")
+
+            LrTasks.sleep(0.5)
             self:startSender(port)
           end
 
@@ -154,6 +158,7 @@ function IPC:startReceiver(port)
 
         if err ~= "timeout" then
           logger:error("onError", err)
+          LrTasks.sleep(0.5)
         end
 
         if self.running then

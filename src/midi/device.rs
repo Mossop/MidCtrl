@@ -195,9 +195,7 @@ pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> HashMap<String, D
         }
     }
 
-    if devices.is_empty() {
-        log::warn!("Found no MIDI devices to connect to");
-    } else {
+    if !devices.is_empty() {
         log::info!("Found {} MIDI devices", devices.len());
     }
 

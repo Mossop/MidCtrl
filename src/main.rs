@@ -4,7 +4,7 @@ use midi_ctrl::Controller;
 
 fn run() -> Result<(), Box<dyn Error>> {
     let dir = current_dir()?;
-    let mut controller = Controller::new(&dir);
+    let mut controller = Controller::new(&dir)?;
     controller.run()
 }
 

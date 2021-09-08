@@ -35,6 +35,8 @@ function Service:init()
       self:onMessage(message)
     elseif event == "connected" then
       self:onConnected()
+    elseif event == "disconnected" then
+      self.onDisconnected()
     end
   end)
 
@@ -56,7 +58,7 @@ function Service:shutdown()
 
   self.running = false
   IPC:disconnect()
-  State:disconnect()
+  State:disconnected()
 end
 
 function Service:onMessage(message)
@@ -88,7 +90,12 @@ function Service:onConnected()
     })
 
     State:rebuildState()
+    State:connected()
   end)
+end
+
+function Service:onDisconnected()
+  State:disconnected()
 end
 
 return Service

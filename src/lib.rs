@@ -53,10 +53,14 @@ pub struct Controller {
 }
 
 impl Controller {
-    pub fn new(root: &Path) -> Controller {
+    pub fn new(root: &Path) -> Result<Controller, String> {
         let (sender, receiver) = channel();
 
         let devices = devices(sender.clone(), root);
+        if devices.is_empty() {
+            return Err(String::from("No MIDI devices found"));
+        }
+
         let profiles = Profiles::new(root, &devices);
         let mut state = State::new();
 
@@ -70,13 +74,13 @@ impl Controller {
         // We expect that the first thing Lightroom will do is send a state update which will
         // trigger updates to the device.
 
-        Controller {
+        Ok(Controller {
             receiver,
             lightroom: Lightroom::new(sender, 61327, 61328),
             devices,
             profiles,
             state,
-        }
+        })
     }
 
     fn profile_changed(&mut self, profile: &Option<Profile>) {

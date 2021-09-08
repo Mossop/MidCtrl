@@ -29,7 +29,7 @@ local function currentPhoto()
 end
 
 local State = {
-  running = true,
+  running = false,
   params = {},
   state = {},
 }
@@ -44,8 +44,6 @@ function State:init(listener)
   if success then
     self.params = params
   end
-
-  self:watch()
 end
 
 function State:buildLibraryState()
@@ -214,10 +212,6 @@ function State:getState()
   return self.state
 end
 
-function State:disconnect()
-  self.running = false
-end
-
 function State:enterModule(context, module)
   self:setStates({
     module = LrApplicationView.getCurrentModuleName()
@@ -244,7 +238,14 @@ local function photosMatch(a, b)
   end
 end
 
-function State:watch()
+function State:connected()
+  if self.running then
+    return
+  end
+
+  self.running = true
+  logger:debug("Starting state updates")
+
   Utils.runAsync(logger, "watch state", function(context)
     local module = LrApplicationView.getCurrentModuleName()
     local photo = currentPhoto()
@@ -276,7 +277,13 @@ function State:watch()
 
       LrTasks.sleep(0.2)
     end
+
+    logger:debug("Stopped state updates")
   end)
+end
+
+function State:disconnected()
+  self.running = false
 end
 
 return State
