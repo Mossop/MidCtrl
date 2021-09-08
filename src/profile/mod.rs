@@ -5,6 +5,7 @@ use serde::Deserialize;
 use serde_json::Map;
 use serde_json::Value as JsonValue;
 use std::collections::BTreeMap;
+use std::fs::File;
 use std::{collections::HashMap, error::Error, path::Path};
 
 use crate::midi::controls::ContinuousLayer;
@@ -46,61 +47,87 @@ struct ProfileConfig {
     controls: Vec<Map<String, JsonValue>>,
 }
 
+fn add_controls(
+    devices: &HashMap<String, Device>,
+    map: &mut HashMap<ControlLayerInfo, ControlProfile>,
+    path: &Path,
+    controls: Vec<Map<String, JsonValue>>,
+) -> Result<(), Box<dyn Error>> {
+    for control in controls {
+        if let Some(JsonValue::String(include)) = control.get("include") {
+            let new_path = path.join(include);
+            let file = File::open(&new_path).map_err(|e| {
+                format!("Failed to open included file {}: {}", new_path.display(), e)
+            })?;
+            let included: Vec<Map<String, JsonValue>> =
+                serde_json::from_reader(file).map_err(|e| {
+                    format!(
+                        "Failed to parse included file {}: {}",
+                        new_path.display(),
+                        e
+                    )
+                })?;
+            add_controls(devices, map, new_path.parent().unwrap(), included)?;
+            continue;
+        }
+
+        let info: ControlLayerInfo =
+            match serde_json::from_value(JsonValue::Object(control.clone())) {
+                Ok(info) => info,
+                Err(e) => {
+                    log::error!("Failed to decode control profile: {}", e);
+                    continue;
+                }
+            };
+
+        let action = match get_layer_control(devices, &info.device, &info.control, &info.layer) {
+            Some(layer_control) => match layer_control {
+                LayerControl::Continuous(_) => {
+                    match serde_json::from_value::<ContinuousProfile>(JsonValue::Object(control)) {
+                        Ok(control_profile) => ControlProfile::Continuous(control_profile),
+                        Err(e) => {
+                            log::error!("Failed to decode control profile: {}", e);
+                            continue;
+                        }
+                    }
+                }
+                LayerControl::Key(_) => {
+                    match serde_json::from_value::<KeyProfile>(JsonValue::Object(control)) {
+                        Ok(control_profile) => ControlProfile::Key(control_profile),
+                        Err(e) => {
+                            log::error!("Failed to decode control profile: {}", e);
+                            continue;
+                        }
+                    }
+                }
+            },
+            None => {
+                log::warn!(
+                    "Unknown control {} in layer {} on device {}",
+                    info.control,
+                    info.layer,
+                    info.device
+                );
+                continue;
+            }
+        };
+
+        map.insert(info, action);
+    }
+
+    Ok(())
+}
+
 impl ProfileConfig {
     pub fn into_profile(
         self,
+        path: &Path,
         name: &str,
         devices: &HashMap<String, Device>,
     ) -> Result<Profile, Box<dyn Error>> {
         let mut map = HashMap::new();
 
-        for control in self.controls {
-            let info: ControlLayerInfo =
-                match serde_json::from_value(JsonValue::Object(control.clone())) {
-                    Ok(info) => info,
-                    Err(e) => {
-                        log::error!("Failed to decode control profile: {}", e);
-                        continue;
-                    }
-                };
-
-            let action = match get_layer_control(devices, &info.device, &info.control, &info.layer)
-            {
-                Some(layer_control) => match layer_control {
-                    LayerControl::Continuous(_) => {
-                        match serde_json::from_value::<ContinuousProfile>(JsonValue::Object(
-                            control,
-                        )) {
-                            Ok(control_profile) => ControlProfile::Continuous(control_profile),
-                            Err(e) => {
-                                log::error!("Failed to decode control profile: {}", e);
-                                continue;
-                            }
-                        }
-                    }
-                    LayerControl::Key(_) => {
-                        match serde_json::from_value::<KeyProfile>(JsonValue::Object(control)) {
-                            Ok(control_profile) => ControlProfile::Key(control_profile),
-                            Err(e) => {
-                                log::error!("Failed to decode control profile: {}", e);
-                                continue;
-                            }
-                        }
-                    }
-                },
-                None => {
-                    log::warn!(
-                        "Unknown control {} in layer {} on device {}",
-                        info.control,
-                        info.layer,
-                        info.device
-                    );
-                    continue;
-                }
-            };
-
-            map.insert(info, action);
-        }
+        add_controls(devices, &mut map, path, self.controls)?;
 
         Ok(Profile {
             name: String::from(name),
@@ -337,7 +364,7 @@ fn read_profiles(root: &Path, devices: &HashMap<String, Device>) -> BTreeMap<Str
 
     for entry in entries {
         match entry {
-            Ok((name, config)) => match config.into_profile(&name, devices) {
+            Ok((name, config)) => match config.into_profile(&dir, &name, devices) {
                 Ok(profile) => {
                     profiles.insert(name, profile);
                 }
