@@ -1,0 +1,11 @@
+#! /bin/bash
+
+VERSION=$1
+NUMBERS=${VERSION//v/}
+ARR=(${NUMBERS//./ })
+
+cat MidiCtrl.lrplugin/Info.lua | sed \
+  -e "s/major = 9/major = ${ARR[0]:-0}/" \
+  -e "s/minor = 9/minor = ${ARR[1]:-0}/" \
+  -e "s/revision = 9/revision = ${ARR[2]:-0}/" \
+  -e "s/build = 9/build = ${ARR[3]:-0}/" \
