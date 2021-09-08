@@ -16,7 +16,7 @@ use midi::{
     controls::KeyState,
     device::{devices, get_layer_control, Device},
 };
-use profile::{Action, Profiles};
+use profile::{Action, Profile, Profiles};
 use state::State;
 
 use crate::lightroom::OutgoingMessage;
@@ -79,31 +79,40 @@ impl Controller {
         }
     }
 
-    fn profile_changed(&mut self, profile: &str) {
+    fn profile_changed(&mut self, profile: &Option<Profile>) {
         self.state.insert(
             String::from("profile"),
-            (Module::Internal, Some(Value::String(String::from(profile)))),
+            (
+                Module::Internal,
+                profile
+                    .as_ref()
+                    .map(|profile| Value::String(profile.name.clone())),
+            ),
         );
 
-        self.lightroom.send(OutgoingMessage::Notification {
-            message: format!("Changed to profile {}", profile),
-        });
+        if let Some(profile) = profile {
+            self.lightroom.send(OutgoingMessage::Notification {
+                message: format!("Changed to profile {}", profile.name),
+            });
+        } else {
+            self.lightroom.send(OutgoingMessage::Notification {
+                message: format!("Lost profile"),
+            });
+        }
     }
 
     fn update_profile(&mut self) {
         // Select the new profile.
-        let profile = match self.profiles.select_new_profile(&self.state) {
-            Some(profile) => {
-                self.profile_changed(&profile.name);
-                profile
-            }
-            None => match self.profiles.current_profile() {
-                Some(profile) => profile,
-                None => return,
-            },
-        };
+        let previous_profile = self.profiles.current_profile();
+        let new_profile = self.profiles.state_update(&self.state);
 
-        profile.update_devices(&mut self.devices, &self.state, false);
+        if previous_profile != new_profile {
+            self.profile_changed(&new_profile);
+        }
+
+        if let Some(profile) = new_profile {
+            profile.update_devices(&mut self.devices, &self.state, false);
+        }
     }
 
     fn reset_state(&mut self) {
@@ -126,8 +135,19 @@ impl Controller {
     fn set_internal_parameter(&mut self, name: String, value: Value) {
         match (name.as_str(), value) {
             ("profile", Value::String(val)) => {
-                if let Some(profile) = self.profiles.set_profile(&val) {
-                    self.profile_changed(&profile.name);
+                if let Some(current_profile) = self.profiles.current_profile() {
+                    if current_profile.name == val {
+                        return;
+                    }
+                }
+
+                let new_profile = self.profiles.set_profile(&val, &self.state);
+                if new_profile.is_some() {
+                    self.profile_changed(&new_profile);
+                }
+
+                if let Some(profile) = new_profile {
+                    profile.update_devices(&mut self.devices, &self.state, false)
                 };
             }
             _ => log::warn!("Attempting to set unknown parameter {}", name),

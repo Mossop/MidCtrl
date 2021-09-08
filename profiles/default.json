@@ -1,4 +1,5 @@
 {
+  "if": { "parameter": "module", "comparison": "!=", "value": "develop" },
   "controls": [
     {
       "device": "x-touch-mini",

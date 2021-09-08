@@ -4,12 +4,14 @@ use midir::MidiOutputConnection;
 use serde::Deserialize;
 use serde_json::Map;
 use serde_json::Value as JsonValue;
+use std::collections::BTreeMap;
 use std::{collections::HashMap, error::Error, path::Path};
 
 use crate::midi::controls::ContinuousLayer;
 use crate::midi::controls::KeyLayer;
 use crate::midi::device::get_layer_control;
 use crate::profile::controls::ContinuousSource;
+use crate::state::Condition;
 use crate::{
     midi::{controls::LayerControl, device::Device},
     state::{State, Value},
@@ -32,11 +34,15 @@ pub enum Action {
 #[derive(Debug, Clone)]
 pub struct Profile {
     pub name: String,
+    when: Option<Condition>,
     controls: HashMap<ControlLayerInfo, ControlProfile>,
 }
 
 #[derive(Deserialize, Debug)]
 struct ProfileConfig {
+    #[serde(rename = "if")]
+    #[serde(default)]
+    when: Option<Condition>,
     controls: Vec<Map<String, JsonValue>>,
 }
 
@@ -98,6 +104,7 @@ impl ProfileConfig {
 
         Ok(Profile {
             name: String::from(name),
+            when: self.when,
             controls: map,
         })
     }
@@ -296,15 +303,28 @@ impl Profile {
             }
         }
     }
+
+    pub fn is_enabled(&self, state: &State) -> bool {
+        match &self.when {
+            Some(condition) => condition.matches(state),
+            None => true,
+        }
+    }
+}
+
+impl PartialEq for Profile {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
 }
 
 pub struct Profiles {
     current_profile: Option<String>,
-    profiles: HashMap<String, Profile>,
+    profiles: BTreeMap<String, Profile>,
 }
 
-fn read_profiles(root: &Path, devices: &HashMap<String, Device>) -> HashMap<String, Profile> {
-    let mut profiles = HashMap::new();
+fn read_profiles(root: &Path, devices: &HashMap<String, Device>) -> BTreeMap<String, Profile> {
+    let mut profiles = BTreeMap::new();
 
     let dir = root.join("profiles");
     let entries = match iter_json::<ProfileConfig>(&dir) {
@@ -345,46 +365,49 @@ impl Profiles {
             profiles: profile_list,
         };
 
-        profiles.current_profile = profiles.choose_profile(None);
-        match profiles.current_profile {
-            Some(ref name) => log::info!("Selected profile {}", name),
-            None => log::warn!("No default profile found"),
-        }
-
+        profiles.state_update(&HashMap::new());
         profiles
     }
 
-    fn choose_profile(&mut self, _state: Option<&State>) -> Option<String> {
-        if self.profiles.contains_key("default") {
-            return Some(String::from("default"));
-        }
-
-        None
-    }
-
-    pub fn set_profile(&mut self, name: &str) -> Option<Profile> {
+    pub fn set_profile(&mut self, name: &str, state: &State) -> Option<Profile> {
         if let Some(profile) = self.profiles.get(name) {
-            self.current_profile = Some(String::from(name));
-            return Some(profile.clone());
-        }
-
-        None
-    }
-
-    pub fn select_new_profile(&mut self, state: &State) -> Option<Profile> {
-        let new_profile = self.choose_profile(Some(state));
-
-        if new_profile == self.current_profile {
-            None
-        } else {
-            if let Some(ref name) = new_profile {
-                log::info!("Switched to profile {}", name);
-                self.profiles.get(name).cloned()
+            if profile.is_enabled(state) {
+                self.current_profile = Some(String::from(name));
+                Some(profile.clone())
             } else {
-                log::info!("There are no longer any valid profiles");
+                log::warn!(
+                    "Attempted to select profile {} but it is not available",
+                    name
+                );
                 None
             }
+        } else {
+            None
         }
+    }
+
+    pub fn state_update(&mut self, state: &State) -> Option<Profile> {
+        if let Some(profile) = self
+            .current_profile
+            .as_ref()
+            .and_then(|name| self.profiles.get(name))
+        {
+            if profile.is_enabled(state) {
+                return Some(profile.clone());
+            }
+        }
+
+        for (name, profile) in &self.profiles {
+            if profile.is_enabled(state) {
+                log::info!("Switched to profile {}", name);
+                self.current_profile = Some(name.clone());
+                return Some(profile.clone());
+            }
+        }
+
+        log::info!("There are no valid profiles");
+        self.current_profile = None;
+        None
     }
 
     pub fn current_profile(&self) -> Option<Profile> {

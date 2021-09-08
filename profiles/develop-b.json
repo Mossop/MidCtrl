@@ -1,0 +1,28 @@
+{
+  "if": {
+    "parameter": "module",
+    "value": "develop"
+  },
+  "controls": [
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 1",
+      "source": { "condition": { "parameter": "profile", "value": "develop-a" } },
+      "action": {
+        "parameter": "profile",
+        "value": "develop-a"
+      }
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 2",
+      "source": { "condition": { "parameter": "profile", "value": "develop-b" } },
+      "action": {
+        "parameter": "profile",
+        "value": "develop-b"
+      }
+    }
+  ]
+}
