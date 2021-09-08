@@ -1,4 +1,4 @@
-use std::{error::Error, path::Path, sync::mpsc::Sender};
+use std::{collections::HashMap, error::Error, path::Path, sync::mpsc::Sender};
 
 use midi_control::MidiMessage;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection};
@@ -6,7 +6,7 @@ use serde::Deserialize;
 
 use crate::{utils::iter_json, ControlMessage};
 
-use super::controls::{Control, KeyState};
+use super::controls::{Control, KeyState, LayerControl};
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct DeviceConfig {
@@ -19,7 +19,7 @@ pub struct Device {
     // Required to keep the input connection open.
     _connection: MidiInputConnection<()>,
     pub output: Option<MidiOutputConnection>,
-    pub controls: Vec<Control>,
+    pub controls: HashMap<String, Control>,
 }
 
 impl Device {
@@ -83,7 +83,11 @@ impl Device {
                     name,
                     _connection: connection,
                     output,
-                    controls: config.controls,
+                    controls: config
+                        .controls
+                        .into_iter()
+                        .map(|control| (String::from(control.name()), control))
+                        .collect(),
                 };
 
                 return Ok(Some(device));
@@ -165,8 +169,8 @@ impl Device {
     }
 }
 
-pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> Vec<Device> {
-    let mut devices = Vec::new();
+pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> HashMap<String, Device> {
+    let mut devices = HashMap::new();
 
     let dir = root.join("devices");
     let entries = match iter_json::<DeviceConfig>(&dir) {
@@ -179,10 +183,10 @@ pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> Vec<Device> {
 
     for entry in entries {
         match entry {
-            Ok((name, config)) => match Device::new(name, sender.clone(), config) {
+            Ok((name, config)) => match Device::new(name.clone(), sender.clone(), config) {
                 Ok(Some(device)) => {
                     log::debug!("Connected to MIDI device {}", device.name);
-                    devices.push(device);
+                    devices.insert(name, device);
                 }
                 Ok(None) => continue,
                 Err(e) => log::error!("Failed to connect to device: {}", e),
@@ -198,4 +202,19 @@ pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> Vec<Device> {
     }
 
     devices
+}
+
+pub fn get_layer_control(
+    devices: &HashMap<String, Device>,
+    device: &str,
+    control: &str,
+    layer: &str,
+) -> Option<LayerControl> {
+    if let Some(device) = devices.get(device) {
+        if let Some(control) = device.controls.get(control) {
+            return control.layer(layer);
+        }
+    }
+
+    None
 }

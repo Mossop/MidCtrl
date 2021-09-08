@@ -5,6 +5,18 @@
       "layer": "A",
       "control": "Encoder 1",
       "action": "Exposure"
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 1",
+      "action": { "toggle": "isPicked" }
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
+      "control": "Button 2",
+      "action": { "toggle": "isRejected" }
     }
   ]
 }

@@ -116,12 +116,12 @@ pub enum ContinuousAction {
 }
 
 impl ContinuousAction {
-    pub fn action(&self, _state: &State, value: f64) -> Action {
+    pub fn action(&self, _state: &State, value: f64) -> Option<Action> {
         match self {
-            ContinuousAction::Parameter(parameter) => Action::SetParameter {
+            ContinuousAction::Parameter(parameter) => Some(Action::SetParameter {
                 name: parameter.clone(),
                 value: Value::Float(value),
-            },
+            }),
         }
     }
 }
@@ -130,20 +130,31 @@ impl ContinuousAction {
 #[serde(untagged)]
 pub enum KeyAction {
     Parameter(String),
+    Toggle { toggle: String },
     SetParameter { parameter: String, value: Value },
 }
 
 impl KeyAction {
-    pub fn action(&self, _state: &State) -> Action {
+    pub fn action(&self, state: &State) -> Option<Action> {
         match self {
-            KeyAction::Parameter(parameter) => Action::SetParameter {
+            KeyAction::Parameter(parameter) => Some(Action::SetParameter {
                 name: parameter.clone(),
                 value: Value::Boolean(true),
-            },
-            KeyAction::SetParameter { parameter, value } => Action::SetParameter {
+            }),
+            KeyAction::Toggle { toggle: parameter } => {
+                if let Some((_, Some(Value::Boolean(val)))) = state.get(parameter) {
+                    Some(Action::SetParameter {
+                        name: parameter.clone(),
+                        value: Value::Boolean(!val),
+                    })
+                } else {
+                    None
+                }
+            }
+            KeyAction::SetParameter { parameter, value } => Some(Action::SetParameter {
                 name: parameter.clone(),
                 value: value.clone(),
-            },
+            }),
         }
     }
 }
@@ -168,11 +179,11 @@ impl KeyActions {
     pub fn action(&self, state: &State) -> Option<Action> {
         match self.actions.len() {
             0 => None,
-            1 => self.actions.get(0).map(|action| action.action(state)),
+            1 => self.actions.get(0).and_then(|action| action.action(state)),
             _ => Some(Action::Sequence(
                 self.actions
                     .iter()
-                    .map(|action| action.action(state))
+                    .filter_map(|action| action.action(state))
                     .collect(),
             )),
         }
@@ -183,7 +194,17 @@ impl KeyActions {
 #[serde(untagged)]
 pub enum KeySource {
     Parameter(String),
+    InvertedParameter {
+        parameter: String,
+        #[serde(default)]
+        invert: bool,
+    },
     Constant(bool),
+    Condition {
+        condition: Condition,
+        #[serde(default)]
+        invert: bool,
+    },
 }
 
 #[derive(Deserialize, Debug, Clone)]
@@ -267,7 +288,7 @@ impl ContinuousProfile {
     pub fn action(&self, state: &State, value: f64) -> Option<Action> {
         self.action
             .resolve(state)
-            .map(|action| action.action(state, value))
+            .and_then(|action| action.action(state, value))
     }
 }
 

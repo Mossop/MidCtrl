@@ -216,6 +216,23 @@ impl Control {
         }
     }
 
+    pub fn layers(&self) -> Vec<(String, LayerControl)> {
+        match self {
+            Control::Continuous(control) => control
+                .layers
+                .iter()
+                .map(|(layer, control)| (layer.clone(), LayerControl::Continuous(control.clone())))
+                .collect(),
+
+            Control::Key(control) => control
+                .layers
+                .clone()
+                .iter()
+                .map(|(layer, control)| (layer.clone(), LayerControl::Key(control.clone())))
+                .collect(),
+        }
+    }
+
     pub fn layer(&self, layer: &str) -> Option<LayerControl> {
         match self {
             Control::Continuous(control) => control

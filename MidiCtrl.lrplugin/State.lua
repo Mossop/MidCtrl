@@ -48,7 +48,32 @@ function State:init(listener)
   self:watch()
 end
 
+function State:buildLibraryState()
+end
+
 function State:buildPhotoState(photo)
+  if photo then
+    local pickStatus = photo:getRawMetadata("pickStatus")
+
+    self:setStates({
+      isPicked = pickStatus == 1,
+      isRejected = pickStatus == -1,
+      isVirtualCopy = photo:getRawMetadata("isVirtualCopy"),
+      isInStack = photo:getRawMetadata("isInStackInFolder"),
+      isVideo = photo:getRawMetadata("isVideo"),
+    })
+  else
+    self:setStates({
+      isPicked = json.null,
+      isRejected = json.null,
+      isVirtualCopy = json.null,
+      isInStack = json.null,
+      isVideo = json.null,
+    })
+  end
+end
+
+function State:buildDevelopState(photo)
   Utils.runAsync(logger, "build photo state", function()
     local state = {}
     local module = LrApplicationView.getCurrentModuleName()
@@ -91,7 +116,9 @@ function State:rebuildState()
 
   local photo = currentPhoto()
   if photo then
+    self:buildDevelopState(photo)
     self:buildPhotoState(photo)
+    self:buildLibraryState()
   end
 
   self:setStates({
@@ -102,6 +129,35 @@ end
 function State:setValue(name, value)
   local module = LrApplicationView.getCurrentModuleName()
   local photo = currentPhoto()
+  if not photo then
+    return
+  end
+
+  if name == "isRejected" then
+    Utils.runWithWriteAccess(logger, "update metadata", function()
+      if value then
+        photo:setRawMetadata("pickStatus", -1)
+      else
+        local status = photo:getRawMetadata("pickStatus")
+        if status == -1 then
+          photo:setRawMetadata("pickStatus", 0)
+        end
+      end
+    end)
+  end
+
+  if name == "isPicked" then
+    Utils.runWithWriteAccess(logger, "update metadata", function()
+      if value then
+        photo:setRawMetadata("pickStatus", 1)
+      else
+        local status = photo:getRawMetadata("pickStatus")
+        if status == 1 then
+          photo:setRawMetadata("pickStatus", 0)
+        end
+      end
+    end)
+  end
 
   for i, param in ipairs(self.params) do
     if param["parameter"] == name then
@@ -135,7 +191,7 @@ function State:enterModule(context, module)
 
   if module == "develop" then
     LrDevelopController.addAdjustmentChangeObserver(context, {}, function()
-      self:buildPhotoState(currentPhoto())
+      self:buildDevelopState(currentPhoto())
     end)
   end
 end
@@ -169,11 +225,20 @@ function State:watch()
         module = newModule
         self:enterModule(context, module)
         photo = newPhoto
-        self:buildPhotoState(photo)
+        self:buildDevelopState(photo)
+        self:buildLibraryState()
       elseif not photosMatch(newPhoto, photo) then
+        if photo then
+          logger:debug("Photo changed to", newPhoto:getFormattedMetadata("fileName"))
+        else
+          logger:debug("No photo selection")
+        end
         photo = newPhoto
-        self:buildPhotoState(photo)
+        self:buildDevelopState(photo)
+        self:buildLibraryState()
       end
+
+      self:buildPhotoState(photo)
 
       LrTasks.sleep(0.2)
     end

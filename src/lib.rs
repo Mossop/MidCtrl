@@ -14,7 +14,7 @@ use std::{
 use lightroom::Lightroom;
 use midi::{
     controls::KeyState,
-    device::{devices, Device},
+    device::{devices, get_layer_control, Device},
 };
 use profile::{Action, Profiles};
 use state::State;
@@ -23,6 +23,7 @@ use crate::lightroom::OutgoingMessage;
 
 use self::state::{Module, Value};
 
+#[derive(Debug)]
 pub enum ControlMessage {
     Reset,
     ContinuousChange {
@@ -46,7 +47,7 @@ pub enum ControlMessage {
 pub struct Controller {
     receiver: Receiver<ControlMessage>,
     lightroom: Lightroom,
-    devices: Vec<Device>,
+    devices: HashMap<String, Device>,
     profiles: Profiles,
     state: State,
 }
@@ -102,13 +103,7 @@ impl Controller {
             },
         };
 
-        log::trace!("New state: {:?}", self.state);
-
-        for device in self.devices.iter_mut() {
-            if let Some(ref mut output) = device.output {
-                profile.update_controls(output, &self.state, &device.name, &device.controls, false);
-            }
-        }
+        profile.update_devices(&mut self.devices, &self.state, false);
     }
 
     fn reset_state(&mut self) {
@@ -169,11 +164,29 @@ impl Controller {
     }
 
     fn key_change(&mut self, device: String, control: String, layer: String, key_state: KeyState) {
-        if key_state == KeyState::Off {
-            return;
-        }
-
         if let Some(profile) = self.profiles.current_profile() {
+            if key_state == KeyState::Off {
+                if let Some(layer_control) =
+                    get_layer_control(&self.devices, &device, &control, &layer)
+                {
+                    if let Some(device) = self.devices.get_mut(&device) {
+                        if let Some(ref mut connection) = device.output {
+                            profile.update_layer_control(
+                                connection,
+                                &self.state,
+                                &device.name,
+                                &control,
+                                &layer,
+                                &layer_control,
+                                false,
+                            )
+                        }
+                    }
+                }
+
+                return;
+            }
+
             if let Some(action) = profile.key_action(&self.state, &device, &control, &layer) {
                 self.perform_action(action);
             }
@@ -183,6 +196,7 @@ impl Controller {
     pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
         loop {
             let message = self.receiver.recv()?;
+            log::trace!("Received control message {:?}", message);
             match message {
                 ControlMessage::Reset => self.reset_state(),
                 ControlMessage::StateChange { module, state } => self.update_state(module, state),

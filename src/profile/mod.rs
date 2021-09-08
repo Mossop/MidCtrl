@@ -8,12 +8,10 @@ use std::{collections::HashMap, error::Error, path::Path};
 
 use crate::midi::controls::ContinuousLayer;
 use crate::midi::controls::KeyLayer;
+use crate::midi::device::get_layer_control;
 use crate::profile::controls::ContinuousSource;
 use crate::{
-    midi::{
-        controls::{Control, LayerControl},
-        device::Device,
-    },
+    midi::{controls::LayerControl, device::Device},
     state::{State, Value},
     utils::iter_json,
 };
@@ -42,27 +40,11 @@ struct ProfileConfig {
     controls: Vec<Map<String, JsonValue>>,
 }
 
-fn get_control(devices: &Vec<Device>, info: &ControlLayerInfo) -> Option<LayerControl> {
-    for device in devices {
-        if device.name != info.device {
-            continue;
-        }
-
-        for control in &device.controls {
-            if control.name() == info.control {
-                return control.layer(&info.layer);
-            }
-        }
-    }
-
-    None
-}
-
 impl ProfileConfig {
-    pub fn info_profile(
+    pub fn into_profile(
         self,
         name: &str,
-        devices: &Vec<Device>,
+        devices: &HashMap<String, Device>,
     ) -> Result<Profile, Box<dyn Error>> {
         let mut map = HashMap::new();
 
@@ -76,7 +58,8 @@ impl ProfileConfig {
                     }
                 };
 
-            let action = match get_control(devices, &info) {
+            let action = match get_layer_control(devices, &info.device, &info.control, &info.layer)
+            {
                 Some(layer_control) => match layer_control {
                     LayerControl::Continuous(_) => {
                         match serde_json::from_value::<ContinuousProfile>(JsonValue::Object(
@@ -89,14 +72,14 @@ impl ProfileConfig {
                             }
                         }
                     }
-                    _ => {
-                        log::warn!(
-                            "Control {} in layer {} on device {} is not yet supported",
-                            info.control,
-                            info.layer,
-                            info.device
-                        );
-                        continue;
+                    LayerControl::Key(_) => {
+                        match serde_json::from_value::<KeyProfile>(JsonValue::Object(control)) {
+                            Ok(control_profile) => ControlProfile::Key(control_profile),
+                            Err(e) => {
+                                log::error!("Failed to decode control profile: {}", e);
+                                continue;
+                            }
+                        }
                     }
                 },
                 None => {
@@ -168,6 +151,7 @@ fn perform_key_update(
             .and_then(|actions| actions.single_action())
         {
             Some(KeyAction::Parameter(parameter)) => Some(KeySource::Parameter(parameter)),
+            Some(KeyAction::Toggle { toggle: parameter }) => Some(KeySource::Parameter(parameter)),
             _ => None,
         },
     };
@@ -179,7 +163,26 @@ fn perform_key_update(
                 if let Some((_, Some(Value::Boolean(value)))) = state.get(&parameter) {
                     *value
                 } else {
-                    return;
+                    false
+                }
+            }
+            KeySource::InvertedParameter { parameter, invert } => {
+                if let Some((_, Some(Value::Boolean(value)))) = state.get(&parameter) {
+                    if invert {
+                        !*value
+                    } else {
+                        *value
+                    }
+                } else {
+                    false
+                }
+            }
+            KeySource::Condition { condition, invert } => {
+                let result = condition.matches(state);
+                if invert {
+                    !result
+                } else {
+                    result
                 }
             }
         };
@@ -235,44 +238,59 @@ impl Profile {
         }
     }
 
-    pub fn update_controls(
+    pub fn update_layer_control(
         &self,
         connection: &mut MidiOutputConnection,
         state: &State,
         device: &str,
-        controls: &Vec<Control>,
+        control: &str,
+        layer: &str,
+        layer_control: &LayerControl,
         force: bool,
     ) {
-        for control in controls {
-            match control {
-                Control::Continuous(continuous) => {
-                    for (layer, layer_control) in &continuous.layers {
-                        if let Some(ControlProfile::Continuous(control_profile)) =
-                            self.get_control_profile(device, &continuous.name, layer)
-                        {
-                            perform_continuous_update(
-                                connection,
-                                state,
-                                layer_control,
-                                control_profile,
-                                force,
-                            );
-                        }
-                    }
+        match layer_control {
+            LayerControl::Continuous(layer_control) => {
+                if let Some(ControlProfile::Continuous(control_profile)) =
+                    self.get_control_profile(device, control, layer)
+                {
+                    perform_continuous_update(
+                        connection,
+                        state,
+                        layer_control,
+                        control_profile,
+                        force,
+                    );
                 }
-                Control::Key(key) => {
-                    for (layer, layer_control) in &key.layers {
-                        if let Some(ControlProfile::Key(control_profile)) =
-                            self.get_control_profile(device, &key.name, layer)
-                        {
-                            perform_key_update(
-                                connection,
-                                state,
-                                layer_control,
-                                control_profile,
-                                force,
-                            );
-                        }
+            }
+            LayerControl::Key(layer_control) => {
+                if let Some(ControlProfile::Key(control_profile)) =
+                    self.get_control_profile(device, control, layer)
+                {
+                    perform_key_update(connection, state, layer_control, control_profile, force);
+                }
+            }
+        }
+    }
+
+    pub fn update_devices(
+        &self,
+        devices: &mut HashMap<String, Device>,
+        state: &State,
+        force: bool,
+    ) {
+        for device in devices.values_mut() {
+            if let Some(ref mut output) = device.output {
+                for control in device.controls.values() {
+                    for (layer, layer_control) in control.layers() {
+                        self.update_layer_control(
+                            output,
+                            state,
+                            &device.name,
+                            control.name(),
+                            &layer,
+                            &layer_control,
+                            force,
+                        );
                     }
                 }
             }
@@ -285,7 +303,7 @@ pub struct Profiles {
     profiles: HashMap<String, Profile>,
 }
 
-fn read_profiles(root: &Path, devices: &Vec<Device>) -> HashMap<String, Profile> {
+fn read_profiles(root: &Path, devices: &HashMap<String, Device>) -> HashMap<String, Profile> {
     let mut profiles = HashMap::new();
 
     let dir = root.join("profiles");
@@ -299,7 +317,7 @@ fn read_profiles(root: &Path, devices: &Vec<Device>) -> HashMap<String, Profile>
 
     for entry in entries {
         match entry {
-            Ok((name, config)) => match config.info_profile(&name, devices) {
+            Ok((name, config)) => match config.into_profile(&name, devices) {
                 Ok(profile) => {
                     profiles.insert(name, profile);
                 }
@@ -313,7 +331,7 @@ fn read_profiles(root: &Path, devices: &Vec<Device>) -> HashMap<String, Profile>
 }
 
 impl Profiles {
-    pub fn new(root: &Path, devices: &Vec<Device>) -> Profiles {
+    pub fn new(root: &Path, devices: &HashMap<String, Device>) -> Profiles {
         let profile_list = read_profiles(root, devices);
 
         if profile_list.len() > 0 {
