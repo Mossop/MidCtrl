@@ -1,10 +1,30 @@
 local LrApplication = import "LrApplication"
 local LrFunctionContext = import "LrFunctionContext"
+local LrPathUtils = import "LrPathUtils"
+local LrFileUtils = import "LrFileUtils"
 local LrErrors = import "LrErrors"
 
 local json = require "json"
 
-local Utils = { }
+local function join(base, ...)
+  local result = base
+  for i, v in ipairs(arg) do
+    result = LrPathUtils.child(result, v)
+  end
+  return result
+end
+
+local Utils = {
+  binary = join(_PLUGIN.path, "midi-ctrl"),
+}
+
+if WIN_ENV then
+  Utils.binary = LrPathUtils.addExtension(Utils.binary, "exe")
+end
+
+function Utils.isDevelopmentBuild()
+  return LrFileUtils.isReadable(Utils.binary)
+end
 
 function Utils.logFailures(context, logger, action)
   context:addFailureHandler(function(_, message)

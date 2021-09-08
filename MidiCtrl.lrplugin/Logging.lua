@@ -1,13 +1,18 @@
 local LrLogger = import "LrLogger"
 
+local Utils = require "Utils"
+
 local lrLogger = LrLogger("MidiCtrl")
-lrLogger:enable({
-  -- trace = "logfile",
-  debug = "logfile",
-  info = "logfile",
-  warn = "logfile",
-  error = "logfile",
-})
+
+if Utils.isDevelopmentBuild() then
+  lrLogger:enable({
+    -- trace = "logfile",
+    debug = "logfile",
+    info = "logfile",
+    warn = "logfile",
+    error = "logfile",
+  })
+end
 
 local Logger = {}
 

@@ -1,19 +1,11 @@
-local LrPathUtils = import "LrPathUtils"
 local LrDialogs = import "LrDialogs"
+local LrShell = import "LrShell"
 
 local State = require "State"
 local Utils = require "Utils"
 local logger = require("Logging")("Service")
 
 local IPC = require "IPC"
-
-local function join(base, ...)
-  local result = base
-  for i, v in ipairs(arg) do
-    result = LrPathUtils.child(result, v)
-  end
-  return result
-end
 
 local Service = {
   running = false
@@ -44,10 +36,9 @@ function Service:init()
 end
 
 function Service:launchBinary()
-  local root = LrPathUtils.parent(_PLUGIN.path)
-  local binary = join(root, "target", "debug", "midi-ctrl")
-
-  -- LrShell.openFilesInApp({}, binary)
+  if not Utils.isDevelopmentBuild() then
+    LrShell.openPathsViaCommandLine({}, Utils.binary, "embedded")
+  end
 end
 
 function Service:shutdown()
