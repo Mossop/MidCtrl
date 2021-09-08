@@ -151,41 +151,6 @@ function State:setValue(name, value)
     return
   end
 
-  if name == "isRejected" then
-    Utils.runWithWriteAccess(logger, "update metadata", function()
-      if value then
-        photo:setRawMetadata("pickStatus", -1)
-      else
-        local status = photo:getRawMetadata("pickStatus")
-        if status == -1 then
-          photo:setRawMetadata("pickStatus", 0)
-        end
-      end
-    end)
-  end
-
-  if name == "rating" then
-    Utils.runWithWriteAccess(logger, "update metadata", function()
-      if value == 0 then
-        value = nil
-      end
-      photo:setRawMetadata("rating", value)
-    end)
-  end
-
-  if name == "isPicked" then
-    Utils.runWithWriteAccess(logger, "update metadata", function()
-      if value then
-        photo:setRawMetadata("pickStatus", 1)
-      else
-        local status = photo:getRawMetadata("pickStatus")
-        if status == 1 then
-          photo:setRawMetadata("pickStatus", 0)
-        end
-      end
-    end)
-  end
-
   for i, param in ipairs(self.params) do
     if param["parameter"] == name then
       if param["type"] == "develop" then
@@ -199,8 +164,46 @@ function State:setValue(name, value)
         LrDevelopController.startTracking(name)
         LrDevelopController.setValue(name, value)
       end
+
+      return
     end
   end
+
+  if name == "module" then
+    LrApplicationView.switchToModule(value)
+    return
+  end
+
+  Utils.runWithWriteAccess(logger, "update metadata", function()
+    if name == "isRejected" then
+      if value then
+        photo:setRawMetadata("pickStatus", -1)
+      else
+        local status = photo:getRawMetadata("pickStatus")
+        if status == -1 then
+          photo:setRawMetadata("pickStatus", 0)
+        end
+      end
+    end
+
+    if name == "isPicked" then
+      if value then
+        photo:setRawMetadata("pickStatus", 1)
+      else
+        local status = photo:getRawMetadata("pickStatus")
+        if status == 1 then
+          photo:setRawMetadata("pickStatus", 0)
+        end
+      end
+    end
+
+    if name == "rating" then
+        if value == 0 then
+          value = nil
+        end
+        photo:setRawMetadata("rating", value)
+    end
+  end)
 end
 
 function State:getState()

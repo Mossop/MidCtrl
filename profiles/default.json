@@ -21,6 +21,16 @@
     {
       "device": "x-touch-mini",
       "layer": "A",
+      "control": "Button 8",
+      "source": { "condition": { "parameter": "module", "value": "develop" } },
+      "action": [
+        { "when": { "parameter": "module", "value": "develop" }, "result": { "parameter": "module", "value": "library" } },
+        { "parameter": "module", "value": "develop" }
+      ]
+    },
+    {
+      "device": "x-touch-mini",
+      "layer": "A",
       "control": "Button 9",
       "source": { "condition": { "parameter": "rating", "value": 1 } },
       "action": [
