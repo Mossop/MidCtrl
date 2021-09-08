@@ -87,10 +87,14 @@ impl Display for Comparison {
 #[serde(rename = "camelCase")]
 pub enum Condition {
     Any {
-        when_any: Vec<Condition>,
+        any: Vec<Condition>,
+        #[serde(default)]
+        invert: bool,
     },
     All {
-        when_all: Vec<Condition>,
+        all: Vec<Condition>,
+        #[serde(default)]
+        invert: bool,
     },
     Comparison {
         parameter: String,
@@ -103,23 +107,23 @@ pub enum Condition {
 impl Condition {
     pub fn matches(&self, state: &State) -> bool {
         match self {
-            Condition::Any { when_any } => {
-                for condition in when_any {
+            Condition::Any { any, invert } => {
+                for condition in any {
                     if condition.matches(state) {
-                        return true;
+                        return !invert;
                     }
                 }
 
-                false
+                *invert
             }
-            Condition::All { when_all } => {
-                for condition in when_all {
+            Condition::All { all, invert } => {
+                for condition in all {
                     if !condition.matches(state) {
-                        return false;
+                        return *invert;
                     }
                 }
 
-                true
+                !invert
             }
             Condition::Comparison {
                 parameter,
