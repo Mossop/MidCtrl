@@ -220,7 +220,11 @@ pub enum Choice<T>
 where
     T: Clone,
 {
-    Conditional { when: Condition, result: T },
+    Conditional {
+        #[serde(rename = "if")]
+        when: Condition,
+        then: T,
+    },
     Simple(T),
 }
 
@@ -230,9 +234,9 @@ where
 {
     pub fn resolve(&self, state: &State) -> Option<T> {
         match self {
-            Choice::Conditional { when, result } => {
+            Choice::Conditional { when, then } => {
                 if when.matches(state) {
-                    Some(result.clone())
+                    Some(then.clone())
                 } else {
                     None
                 }
