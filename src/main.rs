@@ -38,12 +38,18 @@ fn main() {
             }
         }
     } else {
-        match current_dir() {
-            Ok(dir) => dir,
-            Err(e) => {
-                eprintln!("Failed to find settings directory: {}", e);
-                return;
+        match dirs::config_dir() {
+            Some(mut dir) => {
+                dir.push("midi-ctrl");
+                dir
             }
+            None => match current_dir() {
+                Ok(dir) => dir,
+                Err(e) => {
+                    eprintln!("Failed to find settings directory: {}", e);
+                    return;
+                }
+            },
         }
     };
 

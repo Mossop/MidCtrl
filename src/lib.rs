@@ -7,6 +7,8 @@ pub mod utils;
 use std::{
     collections::HashMap,
     error::Error,
+    fs::metadata,
+    io::ErrorKind,
     path::Path,
     sync::mpsc::{channel, Receiver},
 };
@@ -54,6 +56,24 @@ pub struct Controller {
 
 impl Controller {
     pub fn new(root: &Path) -> Result<Controller, String> {
+        match metadata(root) {
+            Ok(metadata) => {
+                if !metadata.is_dir() {
+                    return Err(format!("{} is not a directory", root.display()));
+                }
+            }
+            Err(e) => {
+                if e.kind() == ErrorKind::NotFound {
+                    return Err(format!("Path {} not found", root.display()));
+                }
+                return Err(format!(
+                    "Error accessing settings path {}: {}",
+                    root.display(),
+                    e
+                ));
+            }
+        }
+
         let (sender, receiver) = channel();
 
         let devices = devices(sender.clone(), root);
