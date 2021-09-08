@@ -55,6 +55,8 @@ The `devices` directory in the settings directory contains one JSON file for eac
 
 A device has a name (matches the exposed MIDI name) and a set of controls. Each control can be a continuous control (cc, like knobs or faders) or a key (like a button). Some devices have selectable layers so the same control may be configured differently in different layers. Layers are basically ignored for now though.
 
+The `min`, `max`, `off` and `on` values can be left out if they match those above which appear to be the defaults for most MIDI devices.
+
 ## Profile configuration
 
 The `profiles` directory in the settings directory contains one JSON file for each profile.

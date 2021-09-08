@@ -7,9 +7,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 1,
-          "min": 0,
-          "max": 127
+          "control": 1
         }
       }
     },
@@ -19,9 +17,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 2,
-          "min": 0,
-          "max": 127
+          "control": 2
         }
       }
     },
@@ -31,9 +27,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 3,
-          "min": 0,
-          "max": 127
+          "control": 3
         }
       }
     },
@@ -43,9 +37,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 4,
-          "min": 0,
-          "max": 127
+          "control": 4
         }
       }
     },
@@ -55,9 +47,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 5,
-          "min": 0,
-          "max": 127
+          "control": 5
         }
       }
     },
@@ -67,9 +57,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 6,
-          "min": 0,
-          "max": 127
+          "control": 6
         }
       }
     },
@@ -79,9 +67,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 7,
-          "min": 0,
-          "max": 127
+          "control": 7
         }
       }
     },
@@ -91,9 +77,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 8,
-          "min": 0,
-          "max": 127
+          "control": 8
         }
       }
     },
@@ -103,9 +87,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "control": 9,
-          "min": 0,
-          "max": 127
+          "control": 9
         }
       }
     },
@@ -115,9 +97,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 0,
-          "off": 0,
-          "on": 127
+          "note": 0
         }
       }
     },
@@ -127,9 +107,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 1,
-          "off": 0,
-          "on": 127
+          "note": 1
         }
       }
     },
@@ -139,9 +117,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 2,
-          "off": 0,
-          "on": 127
+          "note": 2
         }
       }
     },
@@ -151,9 +127,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 3,
-          "off": 0,
-          "on": 127
+          "note": 3
         }
       }
     },
@@ -163,9 +137,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 4,
-          "off": 0,
-          "on": 127
+          "note": 4
         }
       }
     },
@@ -175,9 +147,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 5,
-          "off": 0,
-          "on": 127
+          "note": 5
         }
       }
     },
@@ -187,9 +157,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 6,
-          "off": 0,
-          "on": 127
+          "note": 6
         }
       }
     },
@@ -199,9 +167,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 7,
-          "off": 0,
-          "on": 127
+          "note": 7
         }
       }
     },
@@ -212,9 +178,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 8,
-          "off": 0,
-          "on": 127
+          "note": 8
         }
       }
     },
@@ -225,9 +189,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 9,
-          "off": 0,
-          "on": 127
+          "note": 9
         }
       }
     },
@@ -238,9 +200,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 10,
-          "off": 0,
-          "on": 127
+          "note": 10
         }
       }
     },
@@ -251,9 +211,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 11,
-          "off": 0,
-          "on": 127
+          "note": 11
         }
       }
     },
@@ -264,9 +222,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 12,
-          "off": 0,
-          "on": 127
+          "note": 12
         }
       }
     },
@@ -277,9 +233,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 13,
-          "off": 0,
-          "on": 127
+          "note": 13
         }
       }
     },
@@ -290,9 +244,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 14,
-          "off": 0,
-          "on": 127
+          "note": 14
         }
       }
     },
@@ -303,9 +255,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 15,
-          "off": 0,
-          "on": 127
+          "note": 15
         }
       }
     },
@@ -316,9 +266,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 16,
-          "off": 0,
-          "on": 127
+          "note": 16
         }
       }
     },
@@ -329,9 +277,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 17,
-          "off": 0,
-          "on": 127
+          "note": 17
         }
       }
     },
@@ -342,9 +288,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 18,
-          "off": 0,
-          "on": 127
+          "note": 18
         }
       }
     },
@@ -355,9 +299,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 19,
-          "off": 0,
-          "on": 127
+          "note": 19
         }
       }
     },
@@ -368,9 +310,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 20,
-          "off": 0,
-          "on": 127
+          "note": 20
         }
       }
     },
@@ -381,9 +321,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 21,
-          "off": 0,
-          "on": 127
+          "note": 21
         }
       }
     },
@@ -394,9 +332,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 22,
-          "off": 0,
-          "on": 127
+          "note": 22
         }
       }
     },
@@ -407,9 +343,7 @@
       "layers": {
         "A": {
           "channel": 11,
-          "note": 23,
-          "off": 0,
-          "on": 127
+          "note": 23
         }
       }
     }

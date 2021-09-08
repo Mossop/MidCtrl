@@ -46,12 +46,22 @@ fn deserialize_channel<'de, D: Deserializer<'de>>(de: D) -> Result<Channel, D::E
     de.deserialize_any(ChannelVisitor {})
 }
 
+fn default0() -> u8 {
+    0
+}
+
+fn default127() -> u8 {
+    127
+}
+
 #[derive(Deserialize, Clone, Debug)]
 pub struct ContinuousLayer {
     #[serde(deserialize_with = "deserialize_channel")]
     pub channel: Channel,
     pub control: u8,
+    #[serde(default = "default0")]
     min: u8,
+    #[serde(default = "default127")]
     max: u8,
     #[serde(skip)]
     pub state: Arc<Mutex<u8>>,
@@ -151,7 +161,9 @@ pub struct KeyLayer {
     #[serde(deserialize_with = "deserialize_channel")]
     pub channel: Channel,
     pub note: MidiNote,
+    #[serde(default = "default0")]
     pub off: u8,
+    #[serde(default = "default127")]
     pub on: u8,
     #[serde(skip)]
     pub state: Arc<Mutex<KeyState>>,
