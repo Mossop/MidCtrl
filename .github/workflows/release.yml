@@ -13,27 +13,28 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos-latest]
+        os: [windows, macos]
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}-latest
 
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
-      - run: cargo build --release --all-features
+      - run: cargo build --release
       - if: ${{ matrix.os == 'windows-latest '}}
         run: cp target/release/midi-ctrl.exe MidiCtrl.lrplugin
       - if: ${{ matrix.os != 'windows-latest '}}
         run: cp target/release/midi-ctrl MidiCtrl.lrplugin
       - run: ./update_version > Info.lua
       - run: cp Info.lua MidiCtrl.lrplugin/Info.lua
-      - run: zip -r9 MidiCtrl.zip MidiCtrl.lrplugin
-      - uses: "marvinpinto/action-automatic-releases@latest"
+      - env:
+          MATRIXOS: ${{ matrix.os }}
+        run: zip -r9 "MidiCtrl-$MATRIXOS.zip" MidiCtrl.lrplugin
+      - uses: ncipollo/release-action@v1
         with:
-          repo_token: "${{ secrets.GITHUB_TOKEN }}"
-          automatic_release_tag: "latest"
-          prerelease: true
-          title: "Development Build"
-          files: MidiCtrl.zip
+          allowUpdates: true
+          artifacts: "*.zip"
+          artifactContentType: application/zip
+          token: ${{ secrets.GITHUB_TOKEN }}
