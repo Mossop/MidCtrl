@@ -2,7 +2,6 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::max,
     collections::HashMap,
-    error::Error,
     io::{BufRead, BufReader, ErrorKind, Write},
     net::{Ipv4Addr, TcpStream},
     sync::{
@@ -57,7 +56,7 @@ impl Iterator for Incoming {
     }
 }
 
-fn open_stream(port: u16) -> Result<TcpStream, Box<dyn Error>> {
+fn open_stream(port: u16) -> Result<TcpStream, String> {
     let mut backoff = 100;
     loop {
         match TcpStream::connect((Ipv4Addr::LOCALHOST, port)) {
@@ -67,7 +66,7 @@ fn open_stream(port: u16) -> Result<TcpStream, Box<dyn Error>> {
                     thread::sleep(Duration::from_millis(backoff));
                     backoff = max(1000, backoff + 100);
                 }
-                _ => return Err(Box::new(e)),
+                _ => return Err(format!("Failed opening TCP stream: {}", e)),
             },
         }
     }
@@ -76,12 +75,14 @@ fn open_stream(port: u16) -> Result<TcpStream, Box<dyn Error>> {
 fn open_outgoing_stream(
     port: u16,
     outgoing_stream: &Arc<Mutex<Option<TcpStream>>>,
-) -> Result<bool, Box<dyn Error>> {
+) -> Result<bool, String> {
     let stream = open_stream(port)?;
 
     log::debug!("IPC outgoing stream connected");
 
-    let read_stream = stream.try_clone()?;
+    let read_stream = stream
+        .try_clone()
+        .map_err(|e| format!("Failed to clone TCP stream: {}", e))?;
 
     if let Ok(mut guard) = outgoing_stream.lock() {
         guard.replace(stream);
@@ -109,10 +110,7 @@ fn open_outgoing_stream(
     Ok(true)
 }
 
-fn open_incoming_stream(
-    port: u16,
-    sender: Sender<IncomingMessage>,
-) -> Result<bool, Box<dyn Error>> {
+fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bool, String> {
     let stream = open_stream(port)?;
 
     log::debug!("IPC incoming stream connected");
@@ -121,12 +119,20 @@ fn open_incoming_stream(
     let lines = reader.lines();
 
     for line in lines {
-        match serde_json::from_str(&line?)? {
+        match serde_json::from_str(
+            &line.map_err(|e| format!("Failed reading from incoming IPC stream: {}", e))?,
+        )
+        .map_err(|e| format!("Failed to parse incoming IPC message: {}", e))?
+        {
             IncomingMessage::Disconnect => {
-                sender.send(IncomingMessage::Disconnect)?;
+                sender
+                    .send(IncomingMessage::Disconnect)
+                    .map_err(|e| format!("Failed to pass incoming message: {}", e))?;
                 return Ok(false);
             }
-            message => sender.send(message)?,
+            message => sender
+                .send(message)
+                .map_err(|e| format!("Failed to pass incoming message: {}", e))?,
         }
     }
 
@@ -163,15 +169,23 @@ pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Sender<Outg
     });
 
     thread::spawn(move || {
-        let send_message = |message| -> Result<(), Box<dyn Error>> {
-            if let Some(ref mut stream) = *(receiving_stream.lock()?) {
+        let send_message = |message| -> Result<(), String> {
+            if let Some(ref mut stream) = *(receiving_stream
+                .lock()
+                .map_err(|e| format!("Failed to lock stream: {}", e))?)
+            {
                 log::trace!("Sending message: {:?}", message);
 
-                let mut data = serde_json::to_vec(&message)?;
+                let mut data = serde_json::to_vec(&message)
+                    .map_err(|e| format!("Failed to encoding outgoing IPC message: {}", e))?;
                 data.push(0x0a);
 
-                stream.write_all(&data)?;
-                stream.flush()?;
+                stream
+                    .write_all(&data)
+                    .map_err(|e| format!("Failed writing to outgoing IPC stream: {}", e))?;
+                stream
+                    .flush()
+                    .map_err(|e| format!("Failed writing to outgoing IPC stream: {}", e))?;
             } else {
                 log::warn!("Attempt to send message while not connected");
             }

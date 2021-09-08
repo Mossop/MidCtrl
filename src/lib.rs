@@ -6,7 +6,6 @@ pub mod utils;
 
 use std::{
     collections::HashMap,
-    error::Error,
     fs::metadata,
     io::ErrorKind,
     path::Path,
@@ -254,9 +253,12 @@ impl Controller {
         }
     }
 
-    pub fn run(&mut self) -> Result<(), Box<dyn Error>> {
+    pub fn run(&mut self) -> Result<(), String> {
         loop {
-            let message = self.receiver.recv()?;
+            let message = self
+                .receiver
+                .recv()
+                .map_err(|e| format!("Control message channel failed: {}", e))?;
             match message {
                 ControlMessage::Reset => self.reset_state(),
                 ControlMessage::StateChange { module, state } => self.update_state(module, state),

@@ -6,7 +6,7 @@ use serde_json::Map;
 use serde_json::Value as JsonValue;
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::{collections::HashMap, error::Error, path::Path};
+use std::{collections::HashMap, path::Path};
 
 use crate::midi::controls::ContinuousLayer;
 use crate::midi::controls::KeyLayer;
@@ -52,7 +52,7 @@ fn add_controls(
     map: &mut HashMap<ControlLayerInfo, ControlProfile>,
     path: &Path,
     controls: Vec<Map<String, JsonValue>>,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), String> {
     for control in controls {
         if let Some(JsonValue::String(include)) = control.get("include") {
             let new_path = path.join(include);
@@ -124,7 +124,7 @@ impl ProfileConfig {
         path: &Path,
         name: &str,
         devices: &HashMap<String, Device>,
-    ) -> Result<Profile, Box<dyn Error>> {
+    ) -> Result<Profile, String> {
         let mut map = HashMap::new();
 
         add_controls(devices, &mut map, path, self.controls)?;

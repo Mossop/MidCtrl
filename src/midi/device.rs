@@ -27,13 +27,17 @@ impl Device {
         name: String,
         control_sender: Sender<ControlMessage>,
         mut config: DeviceConfig,
-    ) -> Result<Option<Device>, Box<dyn Error>> {
-        let midi_input = MidiInput::new("MidiCtrl")?;
-        let midi_output = MidiOutput::new("MidiCtrl")?;
+    ) -> Result<Option<Device>, String> {
+        let midi_input =
+            MidiInput::new("MidiCtrl").map_err(|e| format!("Failed to open MIDI input: {}", e))?;
+        let midi_output = MidiOutput::new("MidiCtrl")
+            .map_err(|e| format!("Failed to open MIDI output: {}", e))?;
 
         let mut output = None;
         for port in midi_output.ports() {
-            let port_name = midi_output.port_name(&port)?;
+            let port_name = midi_output
+                .port_name(&port)
+                .map_err(|e| format!("Failed to get MIDI port name: {}", e))?;
             if config.name == port_name {
                 output = midi_output.connect(&port, "MidiCtrl").ok();
                 break;
@@ -41,7 +45,9 @@ impl Device {
         }
 
         for port in midi_input.ports() {
-            let port_name = midi_input.port_name(&port)?;
+            let port_name = midi_input
+                .port_name(&port)
+                .map_err(|e| format!("Failed to get MIDI port name: {}", e))?;
             if config.name == port_name {
                 if let Some(ref mut output) = output {
                     for control in config.controls.iter_mut() {
@@ -62,22 +68,26 @@ impl Device {
 
                 let receiver_controls = config.controls.clone();
                 let device_name = name.clone();
-                let connection = midi_input.connect(
-                    &port,
-                    "MidiCtrl",
-                    move |_, buffer, _| {
-                        let message = MidiMessage::from(buffer);
-                        if let Err(e) = Device::handle_message(
-                            device_name.clone(),
-                            message,
-                            &control_sender,
-                            &receiver_controls,
-                        ) {
-                            log::error!("Failed handling MIDI message: {}", e);
-                        }
-                    },
-                    (),
-                )?;
+                let connection = midi_input
+                    .connect(
+                        &port,
+                        "MidiCtrl",
+                        move |_, buffer, _| {
+                            let message = MidiMessage::from(buffer);
+                            if let Err(e) = Device::handle_message(
+                                device_name.clone(),
+                                message,
+                                &control_sender,
+                                &receiver_controls,
+                            ) {
+                                log::error!("Failed handling MIDI message: {}", e);
+                            }
+                        },
+                        (),
+                    )
+                    .map_err(|e| {
+                        format!("Failed to connect to MIDI device {}: {}", port_name, e)
+                    })?;
 
                 let device = Device {
                     name,

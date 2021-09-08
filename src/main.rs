@@ -1,6 +1,5 @@
 use std::{
     env::{self, current_dir},
-    error::Error,
     fs::canonicalize,
     path::PathBuf,
 };
@@ -8,7 +7,7 @@ use std::{
 use daemonize::Daemonize;
 use midi_ctrl::Controller;
 
-fn run(dir: PathBuf) -> Result<(), Box<dyn Error>> {
+fn run(dir: PathBuf) -> Result<(), String> {
     let mut controller = Controller::new(&dir)?;
     controller.run()
 }
