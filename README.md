@@ -81,7 +81,9 @@ The `profiles` directory in the settings directory contains one JSON file for ea
   ]
 }
 ```
-The `if` property controls whether the profile is available, it is a condition as described below. The controls map to the device name (name of the JSON file) and the specific control and layer.
+The `if` property controls whether the profile is available, it is a condition as described below but may be left off if the profile is always available. The controls map to the device name (name of the JSON file) and the specific control and layer.
+
+Whenever the current state is updated from Lightroom a new profile may be selected. If the current profile is still available (based on the `if` property) then nothing changes. If not then the first profile that is available (alphabetically based on the profile's file name) is switched to. A button can also change the profile by setting the parameter `profile` to the file name (excluding the JSON extension).
 
 Controls must have an `action` (what they do when used) and may have a `source` (controls when their display is updated). If a control's `action` is simply setting the value of a parameter than the value of that parameter is used as the `source` by default.
 
