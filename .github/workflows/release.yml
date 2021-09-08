@@ -27,7 +27,7 @@ jobs:
         run: cp target/release/midi-ctrl.exe MidiCtrl.lrplugin
       - if: ${{ matrix.os != 'windows-latest '}}
         run: cp target/release/midi-ctrl MidiCtrl.lrplugin
-      - run: ./update_version > Info.lua
+      - run: ./update_version "${GITHUB_REF#refs/*/}" > Info.lua
       - run: cp Info.lua MidiCtrl.lrplugin/Info.lua
       - env:
           MATRIXOS: ${{ matrix.os }}
