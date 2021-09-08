@@ -83,7 +83,11 @@ function State:buildDevelopState(photo)
   Utils.runAsync(logger, "build photo state", function()
     local state = {}
     local module = LrApplicationView.getCurrentModuleName()
-    local developState = photo:getDevelopSettings()
+
+    local developState = nil
+    if photo then
+      developState = photo:getDevelopSettings()
+    end
 
     for i, param in ipairs(self.params) do
       local value = json.null
@@ -91,8 +95,8 @@ function State:buildDevelopState(photo)
       if photo and param["type"] == "develop" then
         if module == "develop" then
           value = LrDevelopController.getValue(param["parameter"])
-        elseif developState[param["parameter"] .. "2012"] ~= nil then
-          value = developState[param["parameter"] .. "2012"]
+        elseif param["setting"] and developState[param["setting"]] ~= nil then
+          value = developState[param["setting"]]
         elseif developState[param["parameter"]] ~= nil then
           value = developState[param["parameter"]]
         else

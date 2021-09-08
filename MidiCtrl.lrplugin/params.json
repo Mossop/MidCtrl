@@ -14,18 +14,21 @@
   {
     "parameter": "Exposure",
     "type": "develop",
+    "setting": "Exposure2012",
     "min": -5,
     "max": 5
   },
   {
     "parameter": "Highlights",
     "type": "develop",
+    "setting": "Highlights2012",
     "min": -100,
     "max": 100
   },
   {
     "parameter": "Shadows",
     "type": "develop",
+    "setting": "Shadows2012",
     "min": -100,
     "max": 100
   },
@@ -38,18 +41,21 @@
   {
     "parameter": "Contrast",
     "type": "develop",
+    "setting": "Contrast2012",
     "min": -100,
     "max": 100
   },
   {
     "parameter": "Whites",
     "type": "develop",
+    "setting": "Whites2012",
     "min": -100,
     "max": 100
   },
   {
     "parameter": "Blacks",
     "type": "develop",
+    "setting": "Blacks2012",
     "min": -100,
     "max": 100
   },
@@ -62,6 +68,7 @@
   {
     "parameter": "Clarity",
     "type": "develop",
+    "setting": "Clarity2012",
     "min": -100,
     "max": 100
   },
