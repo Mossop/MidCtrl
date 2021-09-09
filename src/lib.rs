@@ -26,6 +26,7 @@ use self::state::{Module, Value};
 
 #[derive(Debug)]
 pub enum ControlMessage {
+    Disconnect,
     Reset,
     ContinuousChange {
         device: String,
@@ -76,9 +77,9 @@ impl Controller {
         let (sender, receiver) = channel();
 
         let devices = devices(sender.clone(), root);
-        if devices.is_empty() {
-            return Err(String::from("No MIDI devices found"));
-        }
+        // if devices.is_empty() {
+        //     return Err(String::from("No MIDI devices found"));
+        // }
 
         let profiles = Profiles::new(root, &devices);
         let mut state = State::new();
@@ -269,6 +270,10 @@ impl Controller {
                 .map_err(|e| format!("Control message channel failed: {}", e))?;
             match message {
                 ControlMessage::Reset => self.reset_state(),
+                ControlMessage::Disconnect => {
+                    log::info!("Service disconnecting");
+                    return Ok(());
+                }
                 ControlMessage::StateChange { module, state } => self.update_state(module, state),
                 ControlMessage::ContinuousChange {
                     device,

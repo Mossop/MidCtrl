@@ -9,7 +9,7 @@ use std::{
         Arc, Mutex,
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::state::Value;
@@ -65,15 +65,20 @@ impl Iterator for Incoming {
     }
 }
 
-fn open_stream(port: u16) -> Result<TcpStream, String> {
+fn open_stream(port: u16) -> Result<Option<TcpStream>, String> {
+    let now = Instant::now();
     let mut backoff = 100;
     loop {
         match TcpStream::connect((Ipv4Addr::LOCALHOST, port)) {
-            Ok(stream) => return Ok(stream),
+            Ok(stream) => return Ok(Some(stream)),
             Err(e) => match e.kind() {
                 ErrorKind::ConnectionRefused | ErrorKind::TimedOut => {
                     thread::sleep(Duration::from_millis(backoff));
                     backoff = max(1000, backoff + 100);
+
+                    if now.elapsed().as_secs() > 10 {
+                        return Ok(None);
+                    }
                 }
                 _ => return Err(format!("Failed opening TCP stream: {}", e)),
             },
@@ -85,7 +90,10 @@ fn open_outgoing_stream(
     port: u16,
     outgoing_stream: &Arc<Mutex<Option<TcpStream>>>,
 ) -> Result<bool, String> {
-    let stream = open_stream(port)?;
+    let stream = match open_stream(port)? {
+        Some(stream) => stream,
+        None => return Ok(false),
+    };
 
     log::debug!("IPC outgoing stream connected");
 
@@ -120,7 +128,13 @@ fn open_outgoing_stream(
 }
 
 fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bool, String> {
-    let stream = open_stream(port)?;
+    let stream = match open_stream(port)? {
+        Some(stream) => stream,
+        None => {
+            log::warn!("Unable to connect for 10 seconds, giving up");
+            return Ok(false);
+        }
+    };
 
     log::debug!("IPC incoming stream connected");
 
@@ -128,20 +142,16 @@ fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bo
     let lines = reader.lines();
 
     for line in lines {
-        match serde_json::from_str(
+        let message = serde_json::from_str(
             &line.map_err(|e| format!("Failed reading from incoming IPC stream: {}", e))?,
         )
-        .map_err(|e| format!("Failed to parse incoming IPC message: {}", e))?
-        {
-            IncomingMessage::Disconnect => {
-                sender
-                    .send(IncomingMessage::Disconnect)
-                    .map_err(|e| format!("Failed to pass incoming message: {}", e))?;
-                return Ok(false);
-            }
+        .map_err(|e| format!("Failed to parse incoming IPC message: {}", e))?;
+
+        match message {
+            IncomingMessage::Disconnect => return Ok(false),
             message => sender
                 .send(message)
-                .map_err(|e| format!("Failed to pass incoming message: {}", e))?,
+                .map_err(|e| format!("Failed to pass incoming IPC message: {}", e))?,
         }
     }
 
@@ -156,7 +166,12 @@ pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Sender<Outg
 
     thread::spawn(move || loop {
         match open_incoming_stream(incoming_port, incoming_sender.clone()) {
-            Ok(false) => return,
+            Ok(false) => {
+                if let Err(e) = incoming_sender.send(IncomingMessage::Disconnect) {
+                    log::error!("Unable to send disconnect message: {}", e);
+                }
+                return;
+            }
             Ok(true) => (),
             Err(e) => log::error!("IPC incoming stream error: {}", e),
         }

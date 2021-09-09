@@ -10,6 +10,7 @@ pub use self::ipc::LightroomAction;
 pub use self::ipc::OutgoingMessage;
 
 pub struct Lightroom {
+    _control_sender: Sender<ControlMessage>,
     sender: Sender<OutgoingMessage>,
 }
 
@@ -21,17 +22,18 @@ impl Lightroom {
     ) -> Lightroom {
         let (incoming, sender) = connect(incoming_port, outgoing_port);
 
+        let thread_sender = control_sender.clone();
         thread::spawn(move || {
             let send_control_message = move |message| {
-                if let Err(e) = control_sender.send(message) {
+                if let Err(e) = thread_sender.send(message) {
                     log::error!("Failed to send state update: {}", e);
                 }
             };
 
             for message in incoming {
                 match message {
+                    IncomingMessage::Disconnect => break,
                     IncomingMessage::Test => (),
-                    IncomingMessage::Disconnect => (),
                     IncomingMessage::Reset => send_control_message(ControlMessage::Reset),
                     IncomingMessage::State { state } => {
                         send_control_message(ControlMessage::StateChange {
@@ -41,9 +43,14 @@ impl Lightroom {
                     }
                 }
             }
+
+            send_control_message(ControlMessage::Disconnect);
         });
 
-        Lightroom { sender }
+        Lightroom {
+            _control_sender: control_sender,
+            sender,
+        }
     }
 
     pub fn send(&self, message: OutgoingMessage) {
