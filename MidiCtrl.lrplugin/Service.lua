@@ -37,8 +37,10 @@ function Service:init()
 end
 
 function Service:launchBinary()
-  if not Utils.isDevelopmentBuild() then
-    LrShell.openPathsViaCommandLine({}, Utils.binary, "embedded")
+  if Utils.isDevelopmentBuild then
+    Utils.runAsync(logger, "launch binary", function()
+      LrShell.openPathsViaCommandLine({}, Utils.binary, "embedded")
+    end)
   end
 end
 

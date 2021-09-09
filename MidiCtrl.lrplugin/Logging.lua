@@ -4,7 +4,7 @@ local Utils = require "Utils"
 
 local lrLogger = LrLogger("MidiCtrl")
 
-if Utils.isDevelopmentBuild() then
+if Utils.isDevelopmentBuild then
   lrLogger:enable({
     -- trace = "logfile",
     debug = "logfile",

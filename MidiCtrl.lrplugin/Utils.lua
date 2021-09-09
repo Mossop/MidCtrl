@@ -15,15 +15,19 @@ local function join(base, ...)
 end
 
 local Utils = {
-  binary = join(_PLUGIN.path, "midi-ctrl"),
 }
 
+local binaryName = "midi-ctrl"
 if WIN_ENV then
-  Utils.binary = LrPathUtils.addExtension(Utils.binary, "exe")
+  binaryName = LrPathUtils.addExtension(binaryName, "exe")
 end
 
-function Utils.isDevelopmentBuild()
-  return LrFileUtils.isReadable(Utils.binary)
+if LrFileUtils.isReadable(join(_PLUGIN.path, binaryName)) then
+  Utils.isDevelopmentBuild = false
+  Utils.binary = join(_PLUGIN.path, binaryName)
+else
+  Utils.isDevelopmentBuild = true
+  Utils.binary = join(LrPathUtils.parent(_PLUGIN.path), "target", "debug", binaryName)
 end
 
 function Utils.logFailures(context, logger, action)
