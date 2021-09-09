@@ -37,7 +37,7 @@ function Service:init()
 end
 
 function Service:launchBinary()
-  if Utils.isDevelopmentBuild then
+  if not Utils.isDevelopmentBuild then
     Utils.runAsync(logger, "launch binary", function()
       LrShell.openPathsViaCommandLine({}, Utils.binary, "embedded")
     end)
@@ -51,7 +51,7 @@ function Service:shutdown()
   logger:trace("Shutdown")
 
   self.running = false
-  IPC:disconnect()
+  IPC:shutdown()
   State:disconnected()
 end
 
@@ -66,7 +66,8 @@ function Service:performAction(action)
     end,
   }
 
-  local cb = actions[action.type]
+  logger:trace("Performing action", action.action)
+  local cb = actions[action.action]
   if cb then
     cb()
   end

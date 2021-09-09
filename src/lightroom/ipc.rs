@@ -114,7 +114,11 @@ fn open_outgoing_stream(
                 log::error!("Error reading from outgoing stream: {}", e);
                 break;
             }
-            _ => continue,
+            Some(Ok(line)) => {
+                if line != "ok" {
+                    log::trace!("Saw unexpected response from IPC message: {}", line);
+                }
+            }
         }
     }
 
@@ -136,12 +140,23 @@ fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bo
         }
     };
 
+    let mut send_stream = stream
+        .try_clone()
+        .map_err(|e| format!("Failed to clone incoming stream: {}", e))?;
+
     log::debug!("IPC incoming stream connected");
 
     let reader = BufReader::new(stream);
     let lines = reader.lines();
 
     for line in lines {
+        send_stream
+            .write_all(&[0x6f, 0x6b])
+            .map_err(|e| format!("Failed to send IPC response: {}", e))?;
+        send_stream
+            .flush()
+            .map_err(|e| format!("Failed to send IPC response: {}", e))?;
+
         let message = serde_json::from_str(
             &line.map_err(|e| format!("Failed reading from incoming IPC stream: {}", e))?,
         )

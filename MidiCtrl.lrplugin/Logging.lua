@@ -6,7 +6,7 @@ local lrLogger = LrLogger("MidiCtrl")
 
 if Utils.isDevelopmentBuild then
   lrLogger:enable({
-    -- trace = "logfile",
+    trace = "logfile",
     debug = "logfile",
     info = "logfile",
     warn = "logfile",
