@@ -44,9 +44,9 @@ impl KeyAction {
                 state
                     .bools
                     .get(parameter)
-                    .map(|_val| Action::SetBoolParameter {
+                    .map(|val| Action::SetBoolParameter {
                         parameter: parameter.clone(),
-                        value: !_val,
+                        value: !val,
                     })
             }
             KeyAction::Action(action) => Some(action.clone()),
