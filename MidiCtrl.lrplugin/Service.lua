@@ -1,11 +1,11 @@
 local LrDialogs = import "LrDialogs"
 local LrShell = import "LrShell"
-local LrTasks = import "LrTasks"
 local LrSelection = import "LrSelection"
 
 local State = require "State"
 local Utils = require "Utils"
 local logger = require("Logging")("Service")
+local json = require "json"
 
 local IPC = require "IPC"
 
@@ -17,10 +17,11 @@ function Service:init()
   logger:trace("Startup")
   self.running = true
 
-  State:init(function(update)
+  State:init(function(values)
+    logger:trace("Send values", json.encode(values))
     IPC:send({
       type = "state",
-      state = update,
+      values = values,
     })
   end)
 
@@ -59,11 +60,11 @@ end
 
 function Service:performAction(action)
   local actions = {
-    nextPhoto = function()
+    NextPhoto = function()
       LrSelection.nextPhoto()
     end,
 
-    previousPhoto = function()
+    PreviousPhoto = function()
       LrSelection.previousPhoto()
     end,
   }
@@ -83,7 +84,7 @@ function Service:onMessage(message)
       end,
 
       setValue = function()
-        State:setValue(message.name, message.value)
+        State:setValue(message.parameter, message.value)
       end,
 
       action = function()

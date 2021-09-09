@@ -1,12 +1,13 @@
+mod actions;
 mod ipc;
 
 use std::{sync::mpsc::Sender, thread};
 
-use crate::{state::Module, ControlMessage};
+use crate::ControlMessage;
 
 use self::ipc::{connect, IncomingMessage};
 
-pub use self::ipc::LightroomAction;
+pub use self::actions::LightroomAction;
 pub use self::ipc::OutgoingMessage;
 
 pub struct Lightroom {
@@ -35,11 +36,8 @@ impl Lightroom {
                     IncomingMessage::Disconnect => break,
                     IncomingMessage::Test => (),
                     IncomingMessage::Reset => send_control_message(ControlMessage::Reset),
-                    IncomingMessage::State { state } => {
-                        send_control_message(ControlMessage::StateChange {
-                            module: Module::Lightroom,
-                            state,
-                        })
+                    IncomingMessage::State { values } => {
+                        send_control_message(ControlMessage::StateChange { values })
                     }
                 }
             }

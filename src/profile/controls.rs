@@ -1,22 +1,25 @@
 use serde::{de::DeserializeOwned, Deserialize};
 use serde_with::{serde_as, OneOrMany};
 
-use crate::state::{Condition, State, Value};
+use crate::state::{
+    params::{BoolParam, FloatParam},
+    Condition, State,
+};
 
 use super::Action;
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum ContinuousAction {
-    Parameter(String),
+    Parameter(FloatParam),
 }
 
 impl ContinuousAction {
     pub fn actions(&self, _state: &State, value: f64) -> Option<Vec<Action>> {
         match self {
-            ContinuousAction::Parameter(parameter) => Some(vec![Action::SetParameter {
+            ContinuousAction::Parameter(parameter) => Some(vec![Action::SetFloatParameter {
                 parameter: parameter.clone(),
-                value: Value::Float(value),
+                value,
             }]),
         }
     }
@@ -25,27 +28,26 @@ impl ContinuousAction {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum KeyAction {
-    Parameter(String),
-    Toggle { toggle: String },
+    Parameter(BoolParam),
+    Toggle { toggle: BoolParam },
     Action(Action),
 }
 
 impl KeyAction {
     pub fn action(&self, state: &State) -> Option<Action> {
         match self {
-            KeyAction::Parameter(parameter) => Some(Action::SetParameter {
+            KeyAction::Parameter(parameter) => Some(Action::SetBoolParameter {
                 parameter: parameter.clone(),
-                value: Value::Boolean(true),
+                value: true,
             }),
             KeyAction::Toggle { toggle: parameter } => {
-                if let Some((_, Some(Value::Boolean(val)))) = state.get(parameter) {
-                    Some(Action::SetParameter {
+                state
+                    .bools
+                    .get(parameter)
+                    .map(|_val| Action::SetBoolParameter {
                         parameter: parameter.clone(),
-                        value: Value::Boolean(!val),
+                        value: !_val,
                     })
-                } else {
-                    None
-                }
             }
             KeyAction::Action(action) => Some(action.clone()),
         }
@@ -85,9 +87,9 @@ impl KeyActions {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum KeySource {
-    Parameter(String),
+    Parameter(BoolParam),
     InvertedParameter {
-        parameter: String,
+        parameter: BoolParam,
         #[serde(default)]
         invert: bool,
     },
@@ -102,7 +104,7 @@ pub enum KeySource {
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum ContinuousSource {
-    Parameter(String),
+    Parameter(FloatParam),
     Constant(f64),
 }
 

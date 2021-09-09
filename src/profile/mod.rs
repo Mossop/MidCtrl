@@ -8,15 +8,19 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::{collections::HashMap, path::Path};
 
+use crate::actions::InternalAction;
 use crate::lightroom::LightroomAction;
 use crate::midi::controls::ContinuousLayer;
 use crate::midi::controls::KeyLayer;
 use crate::midi::device::get_layer_control;
 use crate::profile::controls::ContinuousSource;
+use crate::state::params::BoolParam;
+use crate::state::params::FloatParam;
+use crate::state::params::StringParam;
 use crate::state::Condition;
 use crate::{
     midi::{controls::LayerControl, device::Device},
-    state::{State, Value},
+    state::State,
     utils::iter_json,
 };
 
@@ -28,17 +32,21 @@ use self::controls::KeyAction;
 use self::controls::KeyProfile;
 use self::controls::KeySource;
 
-#[derive(Deserialize, Clone, Debug)]
-#[serde(tag = "action")]
-#[serde(rename_all = "camelCase")]
-pub enum InternalAction {
-    RefreshController,
-}
-
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
 pub enum Action {
-    SetParameter { parameter: String, value: Value },
+    SetFloatParameter {
+        parameter: FloatParam,
+        value: f64,
+    },
+    SetBoolParameter {
+        parameter: BoolParam,
+        value: bool,
+    },
+    SetStringParameter {
+        parameter: StringParam,
+        value: String,
+    },
     LightroomAction(LightroomAction),
     InternalAction(InternalAction),
 }
@@ -169,7 +177,7 @@ fn perform_continuous_update(
         let value = match source {
             ContinuousSource::Constant(value) => value,
             ContinuousSource::Parameter(parameter) => {
-                if let Some((_, Some(Value::Float(value)))) = state.get(&parameter) {
+                if let Some(value) = state.floats.get(&parameter) {
                     *value
                 } else {
                     return;
@@ -205,14 +213,14 @@ fn perform_key_update(
         let value = match source {
             KeySource::Constant(value) => value,
             KeySource::Parameter(parameter) => {
-                if let Some((_, Some(Value::Boolean(value)))) = state.get(&parameter) {
+                if let Some(value) = state.bools.get(&parameter) {
                     *value
                 } else {
                     false
                 }
             }
             KeySource::InvertedParameter { parameter, invert } => {
-                if let Some((_, Some(Value::Boolean(value)))) = state.get(&parameter) {
+                if let Some(value) = state.bools.get(&parameter) {
                     if invert {
                         !*value
                     } else {
@@ -403,7 +411,7 @@ impl Profiles {
             profiles: profile_list,
         };
 
-        profiles.state_update(&HashMap::new());
+        profiles.state_update(&State::new());
         profiles
     }
 

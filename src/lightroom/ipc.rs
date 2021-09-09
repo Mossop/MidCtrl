@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value as JsonValue;
 use std::{
     cmp::max,
-    collections::HashMap,
     io::{BufRead, BufReader, ErrorKind, Write},
     net::{Ipv4Addr, TcpStream},
     sync::{
@@ -12,7 +12,9 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::state::Value;
+use crate::state::{Param, StateValue};
+
+use super::LightroomAction;
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
@@ -20,18 +22,8 @@ use crate::state::Value;
 pub enum IncomingMessage {
     Test,
     Reset,
-    State {
-        state: HashMap<String, Option<Value>>,
-    },
+    State { values: Vec<StateValue> },
     Disconnect,
-}
-
-#[derive(Deserialize, Serialize, Clone, Debug)]
-#[serde(tag = "action")]
-#[serde(rename_all = "camelCase")]
-pub enum LightroomAction {
-    NextPhoto,
-    PreviousPhoto,
 }
 
 #[derive(Serialize, Debug)]
@@ -39,7 +31,7 @@ pub enum LightroomAction {
 #[serde(rename_all = "camelCase")]
 pub enum OutgoingMessage {
     Notification { message: String },
-    SetValue { name: String, value: Value },
+    SetValue { parameter: Param, value: JsonValue },
     Action(LightroomAction),
 }
 

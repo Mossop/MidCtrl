@@ -1,9 +1,11 @@
+pub mod actions;
 mod lightroom;
 mod midi;
 mod profile;
 mod state;
 pub mod utils;
 
+use serde_json::Value as JsonValue;
 use std::{
     collections::HashMap,
     fs::metadata,
@@ -12,17 +14,22 @@ use std::{
     sync::mpsc::{channel, Receiver},
 };
 
+use actions::InternalAction;
 use lightroom::Lightroom;
 use midi::{
     controls::KeyState,
     device::{devices, get_layer_control, Device},
 };
 use profile::{Action, Profile, Profiles};
-use state::State;
+use state::{
+    param_module,
+    params::{BoolParam, FloatParam, StringParam},
+    Param, SetMapEntry, State, StateValue,
+};
 
 use crate::lightroom::OutgoingMessage;
 
-use self::state::{Module, Value};
+use self::state::Module;
 
 #[derive(Debug)]
 pub enum ControlMessage {
@@ -41,8 +48,7 @@ pub enum ControlMessage {
         state: KeyState,
     },
     StateChange {
-        module: Module,
-        state: HashMap<String, Option<Value>>,
+        values: Vec<StateValue>,
     },
 }
 
@@ -85,10 +91,9 @@ impl Controller {
         let mut state = State::new();
 
         if let Some(profile) = profiles.current_profile() {
-            state.insert(
-                String::from("profile"),
-                (Module::Internal, Some(Value::String(profile.name.clone()))),
-            );
+            state
+                .strings
+                .insert(StringParam::Profile, profile.name.clone());
         }
 
         // We expect that the first thing Lightroom will do is send a state update which will
@@ -104,14 +109,9 @@ impl Controller {
     }
 
     fn profile_changed(&mut self, profile: &Option<Profile>) {
-        self.state.insert(
-            String::from("profile"),
-            (
-                Module::Internal,
-                profile
-                    .as_ref()
-                    .map(|profile| Value::String(profile.name.clone())),
-            ),
+        self.state.strings.set(
+            StringParam::Profile,
+            profile.as_ref().map(|profile| profile.name.clone()),
         );
 
         if let Some(profile) = profile {
@@ -145,27 +145,23 @@ impl Controller {
         self.update_profile();
     }
 
-    fn update_state(&mut self, module: Module, state: HashMap<String, Option<Value>>) {
+    fn update_state(&mut self, values: Vec<StateValue>) {
         log::trace!("Updating state");
 
-        // Update our state.
-        for (k, v) in state {
-            self.state.insert(k, (module.clone(), v));
-        }
-
+        self.state.update(values);
         self.update_profile();
     }
 
-    fn set_internal_parameter(&mut self, name: String, value: Value) {
-        match (name.as_str(), value) {
-            ("profile", Value::String(val)) => {
+    fn set_internal_string_parameter(&mut self, param: StringParam, value: String) {
+        match param {
+            StringParam::Profile => {
                 if let Some(current_profile) = self.profiles.current_profile() {
-                    if current_profile.name == val {
+                    if current_profile.name == value {
                         return;
                     }
                 }
 
-                let new_profile = self.profiles.set_profile(&val, &self.state);
+                let new_profile = self.profiles.set_profile(&value, &self.state);
                 if new_profile.is_some() {
                     self.profile_changed(&new_profile);
                 }
@@ -174,32 +170,50 @@ impl Controller {
                     profile.update_devices(&mut self.devices, &self.state, false)
                 };
             }
-            _ => log::warn!("Attempting to set unknown parameter {}", name),
+            _ => log::warn!("Attempting to set unknown parameter {:?}", param),
+        }
+    }
+
+    fn set_internal_bool_parameter(&mut self, param: BoolParam, _: bool) {
+        match param {
+            _ => log::warn!("Attempting to set unknown parameter {:?}", param),
+        }
+    }
+
+    fn set_internal_float_parameter(&mut self, param: FloatParam, _: f64) {
+        match param {
+            _ => log::warn!("Attempting to set unknown parameter {:?}", param),
         }
     }
 
     fn perform_actions(&mut self, actions: Vec<Action>) {
         for action in actions {
             match action {
-                Action::SetParameter {
-                    parameter: name,
-                    value,
-                } => {
-                    if let Some((module, _)) = self.state.get(&name) {
-                        match module {
-                            Module::Internal => self.set_internal_parameter(name, value),
-                            Module::Lightroom => self
-                                .lightroom
-                                .send(OutgoingMessage::SetValue { name, value }),
-                        }
-                    } else {
-                        log::warn!("Attempting to set unknown parameter {}", name);
-                    }
-                }
+                Action::SetBoolParameter { parameter, value } => match param_module(&parameter) {
+                    Module::Lightroom => self.lightroom.send(OutgoingMessage::SetValue {
+                        parameter: Param::Bool(parameter),
+                        value: JsonValue::from(value),
+                    }),
+                    Module::Internal => self.set_internal_bool_parameter(parameter, value),
+                },
+                Action::SetFloatParameter { parameter, value } => match param_module(&parameter) {
+                    Module::Lightroom => self.lightroom.send(OutgoingMessage::SetValue {
+                        parameter: Param::Float(parameter),
+                        value: JsonValue::from(value),
+                    }),
+                    Module::Internal => self.set_internal_float_parameter(parameter, value),
+                },
+                Action::SetStringParameter { parameter, value } => match param_module(&parameter) {
+                    Module::Lightroom => self.lightroom.send(OutgoingMessage::SetValue {
+                        parameter: Param::String(parameter),
+                        value: JsonValue::from(value),
+                    }),
+                    Module::Internal => self.set_internal_string_parameter(parameter, value),
+                },
                 Action::LightroomAction(action) => {
                     self.lightroom.send(OutgoingMessage::Action(action));
                 }
-                Action::InternalAction(profile::InternalAction::RefreshController) => {
+                Action::InternalAction(InternalAction::RefreshController) => {
                     if let Some(profile) = self.profiles.current_profile() {
                         profile.update_devices(&mut self.devices, &self.state, true);
                     };
@@ -274,7 +288,7 @@ impl Controller {
                     log::info!("Service disconnecting");
                     return Ok(());
                 }
-                ControlMessage::StateChange { module, state } => self.update_state(module, state),
+                ControlMessage::StateChange { values } => self.update_state(values),
                 ControlMessage::ContinuousChange {
                     device,
                     control,
