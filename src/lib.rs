@@ -177,23 +177,31 @@ impl Controller {
         }
     }
 
-    fn perform_action(&mut self, action: Action) {
-        match action {
-            Action::SetParameter { name, value } => {
-                if let Some((module, _)) = self.state.get(&name) {
-                    match module {
-                        Module::Internal => self.set_internal_parameter(name, value),
-                        Module::Lightroom => self
-                            .lightroom
-                            .send(OutgoingMessage::SetValue { name, value }),
+    fn perform_actions(&mut self, actions: Vec<Action>) {
+        for action in actions {
+            match action {
+                Action::SetParameter {
+                    parameter: name,
+                    value,
+                } => {
+                    if let Some((module, _)) = self.state.get(&name) {
+                        match module {
+                            Module::Internal => self.set_internal_parameter(name, value),
+                            Module::Lightroom => self
+                                .lightroom
+                                .send(OutgoingMessage::SetValue { name, value }),
+                        }
+                    } else {
+                        log::warn!("Attempting to set unknown parameter {}", name);
                     }
-                } else {
-                    log::warn!("Attempting to set unknown parameter {}", name);
                 }
-            }
-            Action::Sequence(actions) => {
-                for action in actions {
-                    self.perform_action(action);
+                Action::LightroomAction(action) => {
+                    self.lightroom.send(OutgoingMessage::Action(action));
+                }
+                Action::InternalAction(profile::InternalAction::RefreshController) => {
+                    if let Some(profile) = self.profiles.current_profile() {
+                        profile.update_devices(&mut self.devices, &self.state, true);
+                    };
                 }
             }
         }
@@ -209,9 +217,9 @@ impl Controller {
         );
         if let Some(profile) = self.profiles.current_profile() {
             if let Some(action) =
-                profile.continuous_action(&self.state, &device, &control, &layer, value)
+                profile.continuous_actions(&self.state, &device, &control, &layer, value)
             {
-                self.perform_action(action);
+                self.perform_actions(action);
             }
         }
     }
@@ -247,8 +255,8 @@ impl Controller {
                 return;
             }
 
-            if let Some(action) = profile.key_action(&self.state, &device, &control, &layer) {
-                self.perform_action(action);
+            if let Some(action) = profile.key_actions(&self.state, &device, &control, &layer) {
+                self.perform_actions(action);
             }
         }
     }

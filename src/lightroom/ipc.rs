@@ -26,12 +26,21 @@ pub enum IncomingMessage {
     Disconnect,
 }
 
+#[derive(Deserialize, Serialize, Clone, Debug)]
+#[serde(tag = "action")]
+#[serde(rename_all = "camelCase")]
+pub enum LightroomAction {
+    NextPhoto,
+    PreviousPhoto,
+}
+
 #[derive(Serialize, Debug)]
 #[serde(tag = "type")]
 #[serde(rename_all = "camelCase")]
 pub enum OutgoingMessage {
     Notification { message: String },
     SetValue { name: String, value: Value },
+    Action(LightroomAction),
 }
 
 pub struct Incoming {

@@ -12,12 +12,12 @@ pub enum ContinuousAction {
 }
 
 impl ContinuousAction {
-    pub fn action(&self, _state: &State, value: f64) -> Option<Action> {
+    pub fn actions(&self, _state: &State, value: f64) -> Option<Vec<Action>> {
         match self {
-            ContinuousAction::Parameter(parameter) => Some(Action::SetParameter {
-                name: parameter.clone(),
+            ContinuousAction::Parameter(parameter) => Some(vec![Action::SetParameter {
+                parameter: parameter.clone(),
                 value: Value::Float(value),
-            }),
+            }]),
         }
     }
 }
@@ -27,30 +27,27 @@ impl ContinuousAction {
 pub enum KeyAction {
     Parameter(String),
     Toggle { toggle: String },
-    SetParameter { parameter: String, value: Value },
+    Action(Action),
 }
 
 impl KeyAction {
     pub fn action(&self, state: &State) -> Option<Action> {
         match self {
             KeyAction::Parameter(parameter) => Some(Action::SetParameter {
-                name: parameter.clone(),
+                parameter: parameter.clone(),
                 value: Value::Boolean(true),
             }),
             KeyAction::Toggle { toggle: parameter } => {
                 if let Some((_, Some(Value::Boolean(val)))) = state.get(parameter) {
                     Some(Action::SetParameter {
-                        name: parameter.clone(),
+                        parameter: parameter.clone(),
                         value: Value::Boolean(!val),
                     })
                 } else {
                     None
                 }
             }
-            KeyAction::SetParameter { parameter, value } => Some(Action::SetParameter {
-                name: parameter.clone(),
-                value: value.clone(),
-            }),
+            KeyAction::Action(action) => Some(action.clone()),
         }
     }
 }
@@ -72,16 +69,15 @@ impl KeyActions {
         }
     }
 
-    pub fn action(&self, state: &State) -> Option<Action> {
+    pub fn actions(&self, state: &State) -> Option<Vec<Action>> {
         match self.actions.len() {
             0 => None,
-            1 => self.actions.get(0).and_then(|action| action.action(state)),
-            _ => Some(Action::Sequence(
+            _ => Some(
                 self.actions
                     .iter()
                     .filter_map(|action| action.action(state))
                     .collect(),
-            )),
+            ),
         }
     }
 }
@@ -185,10 +181,10 @@ pub struct ContinuousProfile {
 }
 
 impl ContinuousProfile {
-    pub fn action(&self, state: &State, value: f64) -> Option<Action> {
+    pub fn actions(&self, state: &State, value: f64) -> Option<Vec<Action>> {
         self.action
             .resolve(state)
-            .and_then(|action| action.action(state, value))
+            .and_then(|action| action.actions(state, value))
     }
 }
 
@@ -202,10 +198,10 @@ pub struct KeyProfile {
 }
 
 impl KeyProfile {
-    pub fn action(&self, state: &State) -> Option<Action> {
+    pub fn actions(&self, state: &State) -> Option<Vec<Action>> {
         self.action
             .resolve(state)
-            .and_then(|action| action.action(state))
+            .and_then(|action| action.actions(state))
     }
 }
 

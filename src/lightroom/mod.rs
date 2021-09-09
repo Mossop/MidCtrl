@@ -6,6 +6,7 @@ use crate::{state::Module, ControlMessage};
 
 use self::ipc::{connect, IncomingMessage};
 
+pub use self::ipc::LightroomAction;
 pub use self::ipc::OutgoingMessage;
 
 pub struct Lightroom {

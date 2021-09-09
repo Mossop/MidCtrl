@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::{collections::HashMap, path::Path};
 
+use crate::lightroom::LightroomAction;
 use crate::midi::controls::ContinuousLayer;
 use crate::midi::controls::KeyLayer;
 use crate::midi::device::get_layer_control;
@@ -27,9 +28,19 @@ use self::controls::KeyAction;
 use self::controls::KeyProfile;
 use self::controls::KeySource;
 
+#[derive(Deserialize, Clone, Debug)]
+#[serde(tag = "action")]
+#[serde(rename_all = "camelCase")]
+pub enum InternalAction {
+    RefreshController,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum Action {
-    SetParameter { name: String, value: Value },
-    Sequence(Vec<Action>),
+    SetParameter { parameter: String, value: Value },
+    LightroomAction(LightroomAction),
+    InternalAction(InternalAction),
 }
 
 #[derive(Debug, Clone)]
@@ -241,33 +252,33 @@ impl Profile {
         self.controls.get(&info)
     }
 
-    pub fn continuous_action(
+    pub fn continuous_actions(
         &self,
         state: &State,
         device: &str,
         name: &str,
         layer: &str,
         value: f64,
-    ) -> Option<Action> {
+    ) -> Option<Vec<Action>> {
         let control_profile = self.get_control_profile(device, name, layer)?;
 
         match control_profile {
-            ControlProfile::Continuous(control_profile) => control_profile.action(state, value),
+            ControlProfile::Continuous(control_profile) => control_profile.actions(state, value),
             _ => None,
         }
     }
 
-    pub fn key_action(
+    pub fn key_actions(
         &self,
         state: &State,
         device: &str,
         name: &str,
         layer: &str,
-    ) -> Option<Action> {
+    ) -> Option<Vec<Action>> {
         let control_profile = self.get_control_profile(device, name, layer)?;
 
         match control_profile {
-            ControlProfile::Key(control_profile) => control_profile.action(state),
+            ControlProfile::Key(control_profile) => control_profile.actions(state),
             _ => None,
         }
     }

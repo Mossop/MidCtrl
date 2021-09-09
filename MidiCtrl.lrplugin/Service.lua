@@ -1,5 +1,6 @@
 local LrDialogs = import "LrDialogs"
 local LrShell = import "LrShell"
+local LrSelection = import "LrSelection"
 
 local State = require "State"
 local Utils = require "Utils"
@@ -52,6 +53,23 @@ function Service:shutdown()
   State:disconnected()
 end
 
+function Service:performAction(action)
+  local actions = {
+    nextPhoto = function()
+      LrSelection.nextPhoto()
+    end,
+
+    previousPhoto = function()
+      LrSelection.previousPhoto()
+    end,
+  }
+
+  local cb = actions[action.type]
+  if cb then
+    cb()
+  end
+end
+
 function Service:onMessage(message)
   Utils.runAsync(logger, "message handling", function()
     local callbacks = {
@@ -61,6 +79,10 @@ function Service:onMessage(message)
 
       setValue = function()
         State:setValue(message.name, message.value)
+      end,
+
+      action = function()
+        self:performAction(message)
       end,
     }
 
