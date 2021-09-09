@@ -155,7 +155,7 @@ end
 function Socket:onError(err)
   local wasConnected = self.connected
   self.connected = false
-  self.logger:debug("error", err, self.lrSocket)
+  self.logger:debug("error", err)
 
   if wasConnected then
     call(self.logger, self.callbacks.onDisconnected, self, not self.closed)

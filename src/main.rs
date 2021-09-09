@@ -1,18 +1,13 @@
+use flexi_logger::{FileSpec, Logger};
 use std::{
     env::{self, current_dir},
     fs::canonicalize,
     path::PathBuf,
 };
 
-use daemonize::Daemonize;
 use midi_ctrl::Controller;
 
-fn run(dir: PathBuf) -> Result<(), String> {
-    let mut controller = Controller::new(&dir)?;
-    controller.run()
-}
-
-fn main() {
+fn run() -> Result<(), String> {
     let mut args: Vec<String> = env::args().collect();
 
     if !args.is_empty() {
@@ -32,8 +27,7 @@ fn main() {
         match canonicalize(PathBuf::from(arg)) {
             Ok(dir) => dir,
             Err(e) => {
-                eprintln!("Failed to find settings directory: {}", e);
-                return;
+                return Err(format!("Failed to find settings directory: {}", e));
             }
         }
     } else {
@@ -45,32 +39,34 @@ fn main() {
             None => match current_dir() {
                 Ok(dir) => dir,
                 Err(e) => {
-                    eprintln!("Failed to find settings directory: {}", e);
-                    return;
+                    return Err(format!("Failed to find settings directory: {}", e));
                 }
             },
         }
     };
 
-    if embedded {
-        let daemonize = Daemonize::new();
+    let logger = if embedded {
+        let mut filename = dir.clone();
+        filename.push("midi-ctrl.log");
+        let spec = FileSpec::try_from(filename).unwrap();
 
-        match daemonize.start() {
-            Ok(_) => {
-                pretty_env_logger::init();
-                if let Err(e) = run(dir) {
-                    log::error!("Error starting: {}", e);
-                }
-            }
-            Err(e) => {
-                eprintln!("Error starting: {}", e);
-            }
-        }
+        Logger::try_with_str("info")
+            .map_err(|e| format!("Failed to initialize logging: {}", e))?
+            .log_to_file(spec)
     } else {
-        pretty_env_logger::init();
+        Logger::try_with_env().map_err(|e| format!("Failed to initialize logging: {}", e))?
+    };
 
-        if let Err(e) = run(dir) {
-            log::error!("Error starting: {}", e);
-        }
+    let _log_handle = logger
+        .start()
+        .map_err(|e| format!("Failed to start logging: {}", e))?;
+
+    let mut controller = Controller::new(&dir)?;
+    controller.run()
+}
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error starting midi-ctrl: {}", e);
     }
 }

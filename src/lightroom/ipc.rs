@@ -128,7 +128,7 @@ fn open_outgoing_stream(
 
     log::debug!("IPC outgoing stream closed");
 
-    Ok(true)
+    Ok(false)
 }
 
 fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bool, String> {
@@ -172,7 +172,7 @@ fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bo
 
     log::debug!("IPC incoming stream closed");
 
-    Ok(true)
+    Ok(false)
 }
 
 pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Sender<OutgoingMessage>) {

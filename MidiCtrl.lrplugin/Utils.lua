@@ -17,7 +17,7 @@ end
 local Utils = {
 }
 
-local binaryName = "midi-ctrl"
+local binaryName = "midi-ctrl-embedded"
 if WIN_ENV then
   binaryName = LrPathUtils.addExtension(binaryName, "exe")
 end

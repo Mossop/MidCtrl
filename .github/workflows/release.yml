@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        os: [macos]
+        os: [windows, macos]
 
     runs-on: ${{ matrix.os }}-latest
 
@@ -24,9 +24,9 @@ jobs:
           toolchain: stable
       - run: cargo build --release
       - if: ${{ matrix.os == 'windows-latest '}}
-        run: cp target/release/midi-ctrl.exe MidiCtrl.lrplugin
+        run: cp target/release/midi-ctrl.exe target/release/midi-ctrl-embedded.exe MidiCtrl.lrplugin
       - if: ${{ matrix.os != 'windows-latest '}}
-        run: cp target/release/midi-ctrl MidiCtrl.lrplugin
+        run: cp target/release/midi-ctrl target/release/midi-ctrl-embedded MidiCtrl.lrplugin
       - run: ./update_version "${GITHUB_REF#refs/*/}" > Info.lua
       - run: cp Info.lua MidiCtrl.lrplugin/Info.lua
       - env:

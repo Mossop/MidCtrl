@@ -1,5 +1,6 @@
 local LrDialogs = import "LrDialogs"
 local LrShell = import "LrShell"
+local LrTasks = import "LrTasks"
 local LrSelection = import "LrSelection"
 
 local State = require "State"
@@ -39,7 +40,8 @@ end
 function Service:launchBinary()
   if not Utils.isDevelopmentBuild then
     Utils.runAsync(logger, "launch binary", function()
-      LrShell.openPathsViaCommandLine({}, Utils.binary, "embedded")
+      logger:debug("Executing binary", Utils.binary)
+      LrShell.openPathsViaCommandLine({}, Utils.binary)
     end)
   end
 end
