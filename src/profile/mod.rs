@@ -53,13 +53,16 @@ pub enum Action {
 
 #[derive(Debug, Clone)]
 pub struct Profile {
-    pub name: String,
+    pub id: String,
+    name: Option<String>,
     when: Option<Condition>,
     controls: HashMap<ControlLayerInfo, ControlProfile>,
 }
 
 #[derive(Deserialize, Debug)]
 struct ProfileConfig {
+    #[serde(default)]
+    name: Option<String>,
     #[serde(rename = "if")]
     #[serde(default)]
     when: Option<Condition>,
@@ -141,7 +144,7 @@ impl ProfileConfig {
     pub fn into_profile(
         self,
         path: &Path,
-        name: &str,
+        id: &str,
         devices: &HashMap<String, Device>,
     ) -> Result<Profile, String> {
         let mut map = HashMap::new();
@@ -149,7 +152,8 @@ impl ProfileConfig {
         add_controls(devices, &mut map, path, self.controls)?;
 
         Ok(Profile {
-            name: String::from(name),
+            id: String::from(id),
+            name: self.name,
             when: self.when,
             controls: map,
         })
@@ -245,15 +249,22 @@ fn perform_key_update(
 }
 
 impl Profile {
+    pub fn name(&self) -> String {
+        match &self.name {
+            Some(name) => name.clone(),
+            None => self.id.clone(),
+        }
+    }
+
     fn get_control_profile<'a>(
         &'a self,
         device_id: &str,
-        name: &str,
+        control_name: &str,
         layer: &str,
     ) -> Option<&'a ControlProfile> {
         let info = ControlLayerInfo {
             device_id: String::from(device_id),
-            control: String::from(name),
+            control: String::from(control_name),
             layer: String::from(layer),
         };
 
@@ -264,11 +275,11 @@ impl Profile {
         &self,
         state: &State,
         device_id: &str,
-        name: &str,
+        control_name: &str,
         layer: &str,
         value: f64,
     ) -> Option<Vec<Action>> {
-        let control_profile = self.get_control_profile(device_id, name, layer)?;
+        let control_profile = self.get_control_profile(device_id, control_name, layer)?;
 
         match control_profile {
             ControlProfile::Continuous(control_profile) => control_profile.actions(state, value),
@@ -280,10 +291,10 @@ impl Profile {
         &self,
         state: &State,
         device_id: &str,
-        name: &str,
+        control_name: &str,
         layer: &str,
     ) -> Option<Vec<Action>> {
-        let control_profile = self.get_control_profile(device_id, name, layer)?;
+        let control_profile = self.get_control_profile(device_id, control_name, layer)?;
 
         match control_profile {
             ControlProfile::Key(control_profile) => control_profile.actions(state),
@@ -296,7 +307,7 @@ impl Profile {
         connection: &mut MidiOutputConnection,
         state: &State,
         device_id: &str,
-        control: &str,
+        control_name: &str,
         layer: &str,
         layer_control: &LayerControl,
         force: bool,
@@ -304,7 +315,7 @@ impl Profile {
         match layer_control {
             LayerControl::Continuous(layer_control) => {
                 if let Some(ControlProfile::Continuous(control_profile)) =
-                    self.get_control_profile(device_id, control, layer)
+                    self.get_control_profile(device_id, control_name, layer)
                 {
                     perform_continuous_update(
                         connection,
@@ -317,7 +328,7 @@ impl Profile {
             }
             LayerControl::Key(layer_control) => {
                 if let Some(ControlProfile::Key(control_profile)) =
-                    self.get_control_profile(device_id, control, layer)
+                    self.get_control_profile(device_id, control_name, layer)
                 {
                     perform_key_update(connection, state, layer_control, control_profile, force);
                 }
@@ -360,7 +371,7 @@ impl Profile {
 
 impl PartialEq for Profile {
     fn eq(&self, other: &Self) -> bool {
-        self.name == other.name
+        self.id == other.id
     }
 }
 
@@ -383,11 +394,11 @@ fn read_profiles(root: &Path, devices: &HashMap<String, Device>) -> BTreeMap<Str
 
     for entry in entries {
         match entry {
-            Ok((name, config)) => match config.into_profile(&dir, &name, devices) {
+            Ok((id, config)) => match config.into_profile(&dir, &id, devices) {
                 Ok(profile) => {
-                    profiles.insert(name, profile);
+                    profiles.insert(id, profile);
                 }
-                Err(e) => log::error!("Profile {} contained invalid controls: {}", name, e),
+                Err(e) => log::error!("Profile {} contained invalid controls: {}", id, e),
             },
             Err(e) => log::error!("Failed to parse profile: {}", e),
         };
@@ -415,16 +426,13 @@ impl Profiles {
         profiles
     }
 
-    pub fn set_profile(&mut self, name: &str, state: &State) -> Option<Profile> {
-        if let Some(profile) = self.profiles.get(name) {
+    pub fn set_profile(&mut self, id: &str, state: &State) -> Option<Profile> {
+        if let Some(profile) = self.profiles.get(id) {
             if profile.is_enabled(state) {
-                self.current_profile = Some(String::from(name));
+                self.current_profile = Some(String::from(id));
                 Some(profile.clone())
             } else {
-                log::warn!(
-                    "Attempted to select profile {} but it is not available",
-                    name
-                );
+                log::warn!("Attempted to select profile {} but it is not available", id);
                 None
             }
         } else {
@@ -436,17 +444,17 @@ impl Profiles {
         if let Some(profile) = self
             .current_profile
             .as_ref()
-            .and_then(|name| self.profiles.get(name))
+            .and_then(|id| self.profiles.get(id))
         {
             if profile.is_enabled(state) {
                 return Some(profile.clone());
             }
         }
 
-        for (name, profile) in &self.profiles {
+        for (id, profile) in &self.profiles {
             if profile.is_enabled(state) {
-                log::info!("Switched to profile {}", name);
-                self.current_profile = Some(name.clone());
+                log::info!("Switched to profile {}", id);
+                self.current_profile = Some(id.clone());
                 return Some(profile.clone());
             }
         }
@@ -459,7 +467,7 @@ impl Profiles {
     pub fn current_profile(&self) -> Option<Profile> {
         self.current_profile
             .as_ref()
-            .and_then(|name| self.profiles.get(name))
+            .and_then(|id| self.profiles.get(id))
             .cloned()
     }
 }

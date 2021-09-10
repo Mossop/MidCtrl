@@ -99,7 +99,7 @@ impl Controller {
         if let Some(profile) = profiles.current_profile() {
             state
                 .strings
-                .insert(StringParam::Profile, profile.name.clone());
+                .insert(StringParam::Profile, profile.id.clone());
         }
 
         // We expect that the first thing Lightroom will do is send a state update which will
@@ -117,12 +117,12 @@ impl Controller {
     fn profile_changed(&mut self, profile: &Option<Profile>) {
         self.state.strings.set(
             StringParam::Profile,
-            profile.as_ref().map(|profile| profile.name.clone()),
+            profile.as_ref().map(|profile| profile.id.clone()),
         );
 
         if let Some(profile) = profile {
             self.lightroom.send(OutgoingMessage::Notification {
-                message: format!("Changed to profile {}", profile.name),
+                message: format!("Changed to profile {}", profile.name()),
             });
         } else {
             self.lightroom.send(OutgoingMessage::Notification {
@@ -162,7 +162,7 @@ impl Controller {
         match param {
             StringParam::Profile => {
                 if let Some(current_profile) = self.profiles.current_profile() {
-                    if current_profile.name == value {
+                    if current_profile.id == value {
                         return;
                     }
                 }

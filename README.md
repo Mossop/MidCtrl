@@ -62,6 +62,7 @@ The `min`, `max`, `off` and `on` values can be left out if they match those abov
 The `profiles` directory in the settings directory contains one JSON file for each profile.
 ```
 {
+  "name": "Default",
   "if": { "parameter": "module", "value": "develop" },
   "controls": [
     {
@@ -83,7 +84,7 @@ The `profiles` directory in the settings directory contains one JSON file for ea
   ]
 }
 ```
-The `if` property controls whether the profile is available, it is a condition as described below but may be left off if the profile is always available. The controls map to the `device` id (name of the JSON file) and the specific `control`'s name and the control's `layer`.
+The `if` property controls whether the profile is available, it is a condition as described below but may be left off if the profile is always available. The controls map to the `device` id (name of the JSON file) and the specific `control`'s name and the control's `layer`. The `name` property is purely for display purposes and may be left off, in which case the profile's ID (the name of the JSON file) is used instead.
 
 Whenever the current state is updated from Lightroom a new profile may be selected. If the current profile is still available (based on the `if` property) then nothing changes. If not then the first profile that is available (alphabetically based on the profile's file name) is switched to. A button can also change the profile by setting the parameter `profile` to the file name (excluding the JSON extension).
 
