@@ -1,5 +1,4 @@
-use serde::{de::DeserializeOwned, Deserialize};
-use serde_with::{serde_as, OneOrMany};
+use serde::Deserialize;
 
 use crate::state::{
     params::{BoolParam, FloatParam},
@@ -31,56 +30,35 @@ pub enum KeyAction {
     Parameter(BoolParam),
     Toggle { toggle: BoolParam },
     Action(Action),
+    Sequence { sequence: Vec<KeyAction> },
 }
 
 impl KeyAction {
-    pub fn action(&self, state: &State) -> Option<Action> {
+    pub fn action(&self, state: &State) -> Vec<Action> {
+        let mut actions = Vec::new();
+
         match self {
-            KeyAction::Parameter(parameter) => Some(Action::SetBoolParameter {
+            KeyAction::Parameter(parameter) => actions.push(Action::SetBoolParameter {
                 parameter: parameter.clone(),
                 value: true,
             }),
             KeyAction::Toggle { toggle: parameter } => {
-                state
-                    .bools
-                    .get(parameter)
-                    .map(|val| Action::SetBoolParameter {
+                if let Some(val) = state.bools.get(parameter) {
+                    actions.push(Action::SetBoolParameter {
                         parameter: parameter.clone(),
                         value: !val,
-                    })
+                    });
+                }
             }
-            KeyAction::Action(action) => Some(action.clone()),
+            KeyAction::Action(action) => actions.push(action.clone()),
+            KeyAction::Sequence { sequence } => {
+                for action in sequence {
+                    actions.append(&mut action.action(state));
+                }
+            }
         }
-    }
-}
 
-#[serde_as]
-#[derive(Deserialize, Debug, Clone)]
-#[serde(transparent)]
-pub struct KeyActions {
-    #[serde_as(deserialize_as = "OneOrMany<_>")]
-    actions: Vec<KeyAction>,
-}
-
-impl KeyActions {
-    pub fn single_action(&self) -> Option<KeyAction> {
-        if self.actions.len() == 1 {
-            self.actions.get(0).cloned()
-        } else {
-            None
-        }
-    }
-
-    pub fn actions(&self, state: &State) -> Option<Vec<Action>> {
-        match self.actions.len() {
-            0 => None,
-            _ => Some(
-                self.actions
-                    .iter()
-                    .filter_map(|action| action.action(state))
-                    .collect(),
-            ),
-        }
+        actions
     }
 }
 
@@ -140,29 +118,33 @@ where
     }
 }
 
-#[serde_as]
 #[derive(Deserialize, Debug, Clone)]
-#[serde(transparent)]
-pub struct Choices<T>
+#[serde(untagged)]
+pub enum Choices<T>
 where
-    T: Clone + DeserializeOwned,
+    T: Clone,
 {
-    #[serde_as(deserialize_as = "OneOrMany<_>")]
-    choices: Vec<Choice<T>>,
+    Single(Choice<T>),
+    Many(Vec<Choice<T>>),
 }
 
 impl<T> Choices<T>
 where
-    T: Clone + DeserializeOwned,
+    T: Clone,
 {
     pub fn resolve(&self, state: &State) -> Option<T> {
-        for choice in &self.choices {
-            if let Some(result) = choice.resolve(state) {
-                return Some(result);
+        match self {
+            Choices::Single(choice) => choice.resolve(state),
+            Choices::Many(choices) => {
+                for choice in choices {
+                    if let Some(result) = choice.resolve(state) {
+                        return Some(result);
+                    }
+                }
+
+                None
             }
         }
-
-        None
     }
 }
 
@@ -195,7 +177,7 @@ impl ContinuousProfile {
 pub struct KeyProfile {
     #[serde(flatten)]
     pub info: ControlLayerInfo,
-    pub action: Choices<KeyActions>,
+    pub action: Choices<KeyAction>,
     #[serde(default)]
     pub source: Option<Choices<KeySource>>,
 }
@@ -204,7 +186,7 @@ impl KeyProfile {
     pub fn actions(&self, state: &State) -> Option<Vec<Action>> {
         self.action
             .resolve(state)
-            .and_then(|action| action.actions(state))
+            .map(|action| action.action(state))
     }
 }
 

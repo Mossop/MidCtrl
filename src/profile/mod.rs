@@ -84,8 +84,10 @@ fn add_controls(
             let included: Vec<Map<String, JsonValue>> =
                 serde_json::from_reader(file).map_err(|e| {
                     format!(
-                        "Failed to parse included file {}: {}",
+                        "Failed to parse included file {} at line {}, column {}: {}",
                         new_path.display(),
+                        e.line(),
+                        e.column(),
                         e
                     )
                 })?;
@@ -108,7 +110,7 @@ fn add_controls(
                     match serde_json::from_value::<ContinuousProfile>(JsonValue::Object(control)) {
                         Ok(control_profile) => ControlProfile::Continuous(control_profile),
                         Err(e) => {
-                            log::error!("Failed to decode control profile: {}", e);
+                            log::error!("Failed to decode continuous control profile: {}", e);
                             continue;
                         }
                     }
@@ -117,7 +119,7 @@ fn add_controls(
                     match serde_json::from_value::<KeyProfile>(JsonValue::Object(control)) {
                         Ok(control_profile) => ControlProfile::Key(control_profile),
                         Err(e) => {
-                            log::error!("Failed to decode control profile: {}", e);
+                            log::error!("Failed to decode key control profile: {}", e);
                             continue;
                         }
                     }
@@ -202,11 +204,7 @@ fn perform_key_update(
 ) {
     let source = match &control_profile.source {
         Some(source) => source.resolve(state),
-        None => match control_profile
-            .action
-            .resolve(state)
-            .and_then(|actions| actions.single_action())
-        {
+        None => match control_profile.action.resolve(state) {
             Some(KeyAction::Parameter(parameter)) => Some(KeySource::Parameter(parameter)),
             Some(KeyAction::Toggle { toggle: parameter }) => Some(KeySource::Parameter(parameter)),
             _ => None,
