@@ -1,9 +1,6 @@
-local LrApplication = import "LrApplication"
 local LrApplicationView = import "LrApplicationView"
 local LrTasks = import "LrTasks"
 local LrDevelopController = import "LrDevelopController"
-local LrPathUtils = import "LrPathUtils"
-local LrFileUtils = import "LrFileUtils"
 
 local Utils = require "Utils"
 local logger = require("Logging")("State")
@@ -25,7 +22,7 @@ function State:rebuildState()
 end
 
 function State:updateState()
-  Utils.safeCall(logger, "updateState", function()
+  Utils.runAsync(logger, "updateState", function(context)
     local state = Params.getParams()
     local hasUpdates = false
     local values = {}
