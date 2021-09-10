@@ -168,7 +168,8 @@ where
 
 #[derive(Deserialize, PartialEq, Eq, Hash, Debug, Clone)]
 pub struct ControlLayerInfo {
-    pub device: String,
+    #[serde(rename = "device")]
+    pub device_id: String,
     pub control: String,
     pub layer: String,
 }

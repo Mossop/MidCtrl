@@ -36,13 +36,13 @@ pub enum ControlMessage {
     Disconnect,
     Reset,
     ContinuousChange {
-        device: String,
+        device_id: String,
         control: String,
         layer: String,
         value: f64,
     },
     KeyChange {
-        device: String,
+        device_id: String,
         control: String,
         layer: String,
         state: KeyState,
@@ -83,9 +83,15 @@ impl Controller {
         let (sender, receiver) = channel();
 
         let devices = devices(sender.clone(), root);
-        // if devices.is_empty() {
-        //     return Err(String::from("No MIDI devices found"));
-        // }
+        let connected = devices
+            .values()
+            .filter(|device| device.is_connected())
+            .count();
+        if connected == 0 {
+            log::warn!("No MIDI devices connected");
+        } else {
+            log::info!("Connected to {} MIDI devices", connected);
+        }
 
         let profiles = Profiles::new(root, &devices);
         let mut state = State::new();
@@ -222,42 +228,48 @@ impl Controller {
         }
     }
 
-    fn continuous_change(&mut self, device: String, control: String, layer: String, value: f64) {
+    fn continuous_change(&mut self, device_id: String, control: String, layer: String, value: f64) {
         log::trace!(
             "Continuous control {} in layer {} on device {} changed to {}",
             control,
             layer,
-            device,
+            device_id,
             value
         );
         if let Some(profile) = self.profiles.current_profile() {
             if let Some(action) =
-                profile.continuous_actions(&self.state, &device, &control, &layer, value)
+                profile.continuous_actions(&self.state, &device_id, &control, &layer, value)
             {
                 self.perform_actions(action);
             }
         }
     }
 
-    fn key_change(&mut self, device: String, control: String, layer: String, key_state: KeyState) {
+    fn key_change(
+        &mut self,
+        device_id: String,
+        control: String,
+        layer: String,
+        key_state: KeyState,
+    ) {
         log::trace!(
             "Key control {} in layer {} on device {} changed to {}",
             control,
             layer,
-            device,
+            device_id,
             key_state
         );
         if let Some(profile) = self.profiles.current_profile() {
             if key_state == KeyState::Off {
                 if let Some(layer_control) =
-                    get_layer_control(&self.devices, &device, &control, &layer)
+                    get_layer_control(&self.devices, &device_id, &control, &layer)
                 {
-                    if let Some(device) = self.devices.get_mut(&device) {
+                    if let Some(device) = self.devices.get_mut(&device_id) {
                         if let Some(ref mut connection) = device.output {
                             profile.update_layer_control(
                                 connection,
                                 &self.state,
-                                &device.name,
+                                &device_id,
                                 &control,
                                 &layer,
                                 &layer_control,
@@ -270,7 +282,7 @@ impl Controller {
                 return;
             }
 
-            if let Some(action) = profile.key_actions(&self.state, &device, &control, &layer) {
+            if let Some(action) = profile.key_actions(&self.state, &device_id, &control, &layer) {
                 self.perform_actions(action);
             }
         }
@@ -290,13 +302,13 @@ impl Controller {
                 }
                 ControlMessage::StateChange { values } => self.update_state(values),
                 ControlMessage::ContinuousChange {
-                    device,
+                    device_id: device,
                     control,
                     layer,
                     value,
                 } => self.continuous_change(device, control, layer, value),
                 ControlMessage::KeyChange {
-                    device,
+                    device_id: device,
                     control,
                     layer,
                     state,

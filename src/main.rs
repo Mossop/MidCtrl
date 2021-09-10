@@ -45,16 +45,17 @@ fn run() -> Result<(), String> {
         }
     };
 
+    let logger = Logger::try_with_env_or_str("info")
+        .map_err(|e| format!("Failed to initialize logging: {}", e))?;
+
     let logger = if embedded {
         let mut filename = dir.clone();
         filename.push("midi-ctrl.log");
         let spec = FileSpec::try_from(filename).unwrap();
 
-        Logger::try_with_str("info")
-            .map_err(|e| format!("Failed to initialize logging: {}", e))?
-            .log_to_file(spec)
+        logger.log_to_file(spec)
     } else {
-        Logger::try_with_env().map_err(|e| format!("Failed to initialize logging: {}", e))?
+        logger
     };
 
     let _log_handle = logger

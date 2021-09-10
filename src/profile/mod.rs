@@ -99,7 +99,7 @@ fn add_controls(
                 }
             };
 
-        let action = match get_layer_control(devices, &info.device, &info.control, &info.layer) {
+        let action = match get_layer_control(devices, &info.device_id, &info.control, &info.layer) {
             Some(layer_control) => match layer_control {
                 LayerControl::Continuous(_) => {
                     match serde_json::from_value::<ContinuousProfile>(JsonValue::Object(control)) {
@@ -125,7 +125,7 @@ fn add_controls(
                     "Unknown control {} in layer {} on device {}",
                     info.control,
                     info.layer,
-                    info.device
+                    info.device_id
                 );
                 continue;
             }
@@ -247,12 +247,12 @@ fn perform_key_update(
 impl Profile {
     fn get_control_profile<'a>(
         &'a self,
-        device: &str,
+        device_id: &str,
         name: &str,
         layer: &str,
     ) -> Option<&'a ControlProfile> {
         let info = ControlLayerInfo {
-            device: String::from(device),
+            device_id: String::from(device_id),
             control: String::from(name),
             layer: String::from(layer),
         };
@@ -263,12 +263,12 @@ impl Profile {
     pub fn continuous_actions(
         &self,
         state: &State,
-        device: &str,
+        device_id: &str,
         name: &str,
         layer: &str,
         value: f64,
     ) -> Option<Vec<Action>> {
-        let control_profile = self.get_control_profile(device, name, layer)?;
+        let control_profile = self.get_control_profile(device_id, name, layer)?;
 
         match control_profile {
             ControlProfile::Continuous(control_profile) => control_profile.actions(state, value),
@@ -279,11 +279,11 @@ impl Profile {
     pub fn key_actions(
         &self,
         state: &State,
-        device: &str,
+        device_id: &str,
         name: &str,
         layer: &str,
     ) -> Option<Vec<Action>> {
-        let control_profile = self.get_control_profile(device, name, layer)?;
+        let control_profile = self.get_control_profile(device_id, name, layer)?;
 
         match control_profile {
             ControlProfile::Key(control_profile) => control_profile.actions(state),
@@ -295,7 +295,7 @@ impl Profile {
         &self,
         connection: &mut MidiOutputConnection,
         state: &State,
-        device: &str,
+        device_id: &str,
         control: &str,
         layer: &str,
         layer_control: &LayerControl,
@@ -304,7 +304,7 @@ impl Profile {
         match layer_control {
             LayerControl::Continuous(layer_control) => {
                 if let Some(ControlProfile::Continuous(control_profile)) =
-                    self.get_control_profile(device, control, layer)
+                    self.get_control_profile(device_id, control, layer)
                 {
                     perform_continuous_update(
                         connection,
@@ -317,7 +317,7 @@ impl Profile {
             }
             LayerControl::Key(layer_control) => {
                 if let Some(ControlProfile::Key(control_profile)) =
-                    self.get_control_profile(device, control, layer)
+                    self.get_control_profile(device_id, control, layer)
                 {
                     perform_key_update(connection, state, layer_control, control_profile, force);
                 }
@@ -331,14 +331,14 @@ impl Profile {
         state: &State,
         force: bool,
     ) {
-        for device in devices.values_mut() {
+        for (id, device) in devices {
             if let Some(ref mut output) = device.output {
                 for control in device.controls.values() {
                     for (layer, layer_control) in control.layers() {
                         self.update_layer_control(
                             output,
                             state,
-                            &device.name,
+                            id,
                             control.name(),
                             &layer,
                             &layer_control,

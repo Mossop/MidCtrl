@@ -22,7 +22,7 @@ Everything is based around the current state of Lightroom. The state is a set of
 The `devices` directory in the settings directory contains one JSON file for each MIDI device.
 ```
 {
-  "name": "X-TOUCH MINI",
+  "port": "X-TOUCH MINI",
   "controls": [
     {
       "name": "Encoder 1",
@@ -53,7 +53,7 @@ The `devices` directory in the settings directory contains one JSON file for eac
 }
 ```
 
-A device has a name (matches the exposed MIDI name) and a set of controls. Each control can be a continuous control (cc, like knobs or faders) or a key (like a button). Some devices have selectable layers so the same control may be configured differently in different layers. Layers are basically ignored for now though.
+A device has a port (matches the exposed MIDI name) and a set of controls. Each control can be a continuous control (cc, like knobs or faders) or a key (like a button). Some devices have selectable layers so the same control may be configured differently in different layers. Layers are basically ignored for now though.
 
 The `min`, `max`, `off` and `on` values can be left out if they match those above which appear to be the defaults for most MIDI devices.
 
@@ -83,7 +83,7 @@ The `profiles` directory in the settings directory contains one JSON file for ea
   ]
 }
 ```
-The `if` property controls whether the profile is available, it is a condition as described below but may be left off if the profile is always available. The controls map to the device name (name of the JSON file) and the specific control and layer.
+The `if` property controls whether the profile is available, it is a condition as described below but may be left off if the profile is always available. The controls map to the `device` id (name of the JSON file) and the specific `control`'s name and the control's `layer`.
 
 Whenever the current state is updated from Lightroom a new profile may be selected. If the current profile is still available (based on the `if` property) then nothing changes. If not then the first profile that is available (alphabetically based on the profile's file name) is switched to. A button can also change the profile by setting the parameter `profile` to the file name (excluding the JSON extension).
 
@@ -145,6 +145,11 @@ Toggles a boolean parameter when pressed:
 Sets a parameter to something specific:
 ```
 "action": { "parameter": "Exposure", "value": 0.5 }
+```
+
+Trigger an action:
+```
+"action": "NextPhoto"
 ```
 
 ## Conditions
