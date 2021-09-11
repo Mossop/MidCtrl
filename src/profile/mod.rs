@@ -103,6 +103,10 @@ fn add_controls(
             }
             ControlConfig::Control(control) => {
                 let info = control.info();
+                if map.contains_key(&info) {
+                    log::warn!("Found duplicate definition for control {} in layer {} on device {} in profile {}", info.control, info.layer, info.device_id, profile);
+                }
+
                 match (
                     control,
                     get_layer_control(devices, &info.device_id, &info.control, &info.layer),
