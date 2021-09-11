@@ -160,14 +160,16 @@ pub struct ControlLayerInfo {
 pub struct ContinuousProfile {
     #[serde(flatten)]
     pub info: ControlLayerInfo,
-    pub action: Choices<ContinuousAction>,
+    #[serde(rename = "onChange")]
+    pub on_change: Choices<ContinuousAction>,
     #[serde(default)]
-    pub source: Option<Choices<ContinuousSource>>,
+    #[serde(rename = "valueSource")]
+    pub value_source: Option<Choices<ContinuousSource>>,
 }
 
 impl ContinuousProfile {
-    pub fn actions(&self, state: &State, value: f64) -> Option<Vec<Action>> {
-        self.action
+    pub fn change_action(&self, state: &State, value: f64) -> Option<Vec<Action>> {
+        self.on_change
             .resolve(state)
             .and_then(|action| action.actions(state, value))
     }
@@ -177,21 +179,43 @@ impl ContinuousProfile {
 pub struct KeyProfile {
     #[serde(flatten)]
     pub info: ControlLayerInfo,
-    pub action: Choices<KeyAction>,
+    #[serde(rename = "onPress")]
+    pub on_press: Choices<KeyAction>,
     #[serde(default)]
-    pub source: Option<Choices<KeySource>>,
+    #[serde(rename = "onPress")]
+    pub on_release: Option<Choices<KeyAction>>,
+    #[serde(default)]
+    #[serde(rename = "noteSource")]
+    pub note_source: Option<Choices<KeySource>>,
 }
 
 impl KeyProfile {
-    pub fn actions(&self, state: &State) -> Option<Vec<Action>> {
-        self.action
+    pub fn press_actions(&self, state: &State) -> Option<Vec<Action>> {
+        self.on_press
             .resolve(state)
+            .map(|action| action.action(state))
+    }
+
+    pub fn release_actions(&self, state: &State) -> Option<Vec<Action>> {
+        self.on_release
+            .as_ref()
+            .and_then(|choices| choices.resolve(state))
             .map(|action| action.action(state))
     }
 }
 
 #[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
 pub enum ControlProfile {
     Continuous(ContinuousProfile),
     Key(KeyProfile),
+}
+
+impl ControlProfile {
+    pub fn info(&self) -> ControlLayerInfo {
+        match self {
+            ControlProfile::Continuous(profile) => profile.info.clone(),
+            ControlProfile::Key(profile) => profile.info.clone(),
+        }
+    }
 }

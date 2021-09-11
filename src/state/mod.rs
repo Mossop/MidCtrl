@@ -3,9 +3,26 @@ pub mod params;
 use std::hash::Hash;
 use std::{collections::HashMap, convert::TryFrom, fmt::Display};
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use self::params::{BoolParam, FloatParam, StringParam};
+
+#[derive(Deserialize, Debug, Clone)]
+#[serde(untagged)]
+pub enum SerializedStringParam {
+    Param(StringParam),
+    Custom(String),
+}
+
+pub fn deserialize_string_param<'de, D>(deserializer: D) -> Result<StringParam, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    match SerializedStringParam::deserialize(deserializer)? {
+        SerializedStringParam::Param(string_param) => Ok(string_param),
+        SerializedStringParam::Custom(str) => Ok(StringParam::Custom(str)),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub enum Module {
@@ -46,6 +63,7 @@ where
     let param: Param = param.clone().into();
     match param {
         Param::String(StringParam::Profile) => Module::Internal,
+        Param::String(StringParam::Custom(_)) => Module::Internal,
         _ => Module::Lightroom,
     }
 }
@@ -223,6 +241,7 @@ pub enum Condition {
         value: Option<bool>,
     },
     StringComparison {
+        #[serde(deserialize_with = "deserialize_string_param")]
         parameter: StringParam,
         #[serde(default)]
         comparison: GeneralComparison,

@@ -6,7 +6,6 @@ use std::{
 };
 
 use serde::de::DeserializeOwned;
-use serde_json::Error;
 
 pub struct IterJson<T>
 where
@@ -20,7 +19,7 @@ impl<T> Iterator for IterJson<T>
 where
     T: DeserializeOwned,
 {
-    type Item = Result<(String, T), Error>;
+    type Item = Result<(String, T), String>;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -39,12 +38,12 @@ where
                 continue;
             }
 
-            let mut name = match entry.file_name().into_string() {
+            let file_name = match entry.file_name().into_string() {
                 Ok(name) => name,
                 Err(_) => continue,
             };
 
-            if !name.ends_with(".json") {
+            if !file_name.ends_with(".json") {
                 continue;
             }
 
@@ -53,11 +52,20 @@ where
                 Err(_) => continue,
             };
 
+            let mut name = file_name.clone();
             name.truncate(name.len() - 5);
 
             match serde_json::from_reader(reader) {
                 Ok(data) => return Some(Ok((name, data))),
-                Err(e) => return Some(Err(e)),
+                Err(e) => {
+                    return Some(Err(format!(
+                        "Failed to parse {} at line {}, column {}: {}",
+                        file_name,
+                        e.line(),
+                        e.column(),
+                        e
+                    )))
+                }
             }
         }
     }

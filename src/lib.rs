@@ -176,6 +176,12 @@ impl Controller {
                     profile.update_devices(&mut self.devices, &self.state, false)
                 };
             }
+            StringParam::Custom(str) => {
+                self.state
+                    .strings
+                    .set(StringParam::Custom(str), Some(value));
+                self.update_profile();
+            }
             _ => log::warn!("Attempting to set unknown parameter {:?}", param),
         }
     }
@@ -260,7 +266,11 @@ impl Controller {
             key_state
         );
         if let Some(profile) = self.profiles.current_profile() {
-            if key_state == KeyState::Off {
+            if let Some(action) =
+                profile.key_actions(&self.state, &device_id, &control, &layer, key_state)
+            {
+                self.perform_actions(action);
+            } else {
                 if let Some(layer_control) =
                     get_layer_control(&self.devices, &device_id, &control, &layer)
                 {
@@ -280,10 +290,6 @@ impl Controller {
                 }
 
                 return;
-            }
-
-            if let Some(action) = profile.key_actions(&self.state, &device_id, &control, &layer) {
-                self.perform_actions(action);
             }
         }
     }

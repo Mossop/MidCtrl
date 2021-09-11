@@ -65,18 +65,19 @@ The `profiles` directory in the settings directory contains one JSON file for ea
   "name": "Default",
   "if": { "parameter": "module", "value": "develop" },
   "controls": [
+    { "include": "../shared.json" },
     {
       "device": "x-touch-mini",
       "layer": "A",
       "control": "Encoder 1",
-      "action": "Exposure"
+      "onChange": "Exposure"
     },
     {
       "device": "x-touch-mini",
       "layer": "A",
       "control": "Button 1",
-      "source": { "condition": { "parameter": "module", "value": "develop" } },
-      "action": [
+      "noteSource": { "condition": { "parameter": "module", "value": "develop" } },
+      "onPress": [
         { "if": { "parameter": "module", "value": "develop" }, "then": { "parameter": "module", "value": "library" } },
         { "parameter": "module", "value": "develop" }
       ]
@@ -84,78 +85,80 @@ The `profiles` directory in the settings directory contains one JSON file for ea
   ]
 }
 ```
+An `include` includes the contents of a different JSON file, it should include an array of controls.
+
 The `if` property controls whether the profile is available, it is a condition as described below but may be left off if the profile is always available. The controls map to the `device` id (name of the JSON file) and the specific `control`'s name and the control's `layer`. The `name` property is purely for display purposes and may be left off, in which case the profile's ID (the name of the JSON file) is used instead.
 
 Whenever the current state is updated from Lightroom a new profile may be selected. If the current profile is still available (based on the `if` property) then nothing changes. If not then the first profile that is available (alphabetically based on the profile's file name) is switched to. A button can also change the profile by setting the parameter `profile` to the file name (excluding the JSON extension).
 
-Controls must have an `action` (what they do when used) and may have a `source` (controls when their display is updated). If a control's `action` is simply setting the value of a parameter than the value of that parameter is used as the `source` by default.
+Controls can list events (what they do when used) and may have a display source (controls when their display is updated). If a control's default event is simply setting the value of a parameter than the value of that parameter is used as the display source by default.
 
-For continuous controls the source must resolve to a number between 0 and 1. For buttons it must resolve to a boolean.
+For continuous controls the display source must resolve to a number between 0 and 1. For buttons it must resolve to a boolean.
 
-Both sources and actions may be conditional, an object with an `if` condition and a `then` result. They may also be arrays of such, the first one that matches the condition is the result. In the `Button 1` example above pressing the button will change the module to `library` if it is currently `develop` otherwise it will change the module to `develop`. The final set of actions may also be an array allowing a single button to trigger multiple effects.
+Both sources and events may be conditional, an object with an `if` condition and a `then` result. They may also be arrays of such, the first one that matches the condition is the result. In the `Button 1` example above pressing the button will change the module to `library` if it is currently `develop` otherwise it will change the module to `develop`. The final set of actions may also be an array allowing a single button to trigger multiple effects.
 
-## Sources
+## Display Sources
 
-There are a few different ways to provide the display for a control. Remember that for continuous controls the source must end as a number from 0 to 1, for a button it must be a boolean.
+There are a few different ways to provide the display for a control. Remember that for continuous controls the source must end as a number from 0 to 1, for a button it must be a boolean. For continuous controls the source is included as `valueSource` property:
 
 The value of the parameter `Exposure` is used:
 ```
-"source": "Exposure"
+"valueSource": "Exposure"
 ```
 
+The value 0.5 is used.
+```
+"valueSource": 0.5
+```
+
+For buttons it is a `noteSource`:
 The boolean parameter `isRejected` is inverted:
 ```
-"source": { "parameter": "isRejected", "inverted": true },
-```
-
-The value 0.5 is used (continuous controls).
-```
-"source": 0.5
+"noteSource": { "parameter": "isRejected", "inverted": true },
 ```
 
 The value is true (buttons).
 ```
-"source": true
+"noteSource": true
 ```
-
 
 If the condition (see below) matches then the value is true. The `invert` property can be used to invert the result but may be left out if false.
 ```
-"source": { "condition": { /* condition */ }, "invert": false }
+"noteSource": { "condition": { /* condition */ }, "invert": false }
 ```
 
-## Actions
+## Events
 
 Continuous controls can do just one thing, set the value of a numeric parameter:
 ```
-"action": "Exposure"
+"onChange": "Exposure"
 ```
 
 Buttons have a few options...
 
 Sets a boolean paramater to true when pressed:
 ```
-"action": "isRejected"
+"onPress": "isRejected"
 ```
 
 Toggles a boolean parameter when pressed:
 ```
-"action": { "toggle": "isRejected" }
+"onPress": { "toggle": "isRejected" }
 ```
 
-Sets a parameter to something specific:
+Sets a parameter to something specific when the button is released:
 ```
-"action": { "parameter": "Exposure", "value": 0.5 }
+"onRelease": { "parameter": "Exposure", "value": 0.5 }
 ```
 
 Trigger an action:
 ```
-"action": "NextPhoto"
+"onPress": "NextPhoto"
 ```
 
 ## Conditions
 
-Conditions can be used to disable profiles and configure actions and sources. There is one basic condition:
+Conditions can be used to disable profiles and configure events and sources. There is one basic condition:
 ```
 { "parameter": "Exposure", "comparison": ">", "value": 0.5 }
 ```

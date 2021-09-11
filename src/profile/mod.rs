@@ -2,18 +2,17 @@ pub mod controls;
 
 use midir::MidiOutputConnection;
 use serde::Deserialize;
-use serde_json::Map;
-use serde_json::Value as JsonValue;
 use std::collections::BTreeMap;
 use std::fs::File;
 use std::{collections::HashMap, path::Path};
 
 use crate::actions::InternalAction;
 use crate::lightroom::LightroomAction;
-use crate::midi::controls::ContinuousLayer;
 use crate::midi::controls::KeyLayer;
+use crate::midi::controls::{ContinuousLayer, KeyState};
 use crate::midi::device::get_layer_control;
 use crate::profile::controls::ContinuousSource;
+use crate::state::deserialize_string_param;
 use crate::state::params::BoolParam;
 use crate::state::params::FloatParam;
 use crate::state::params::StringParam;
@@ -44,11 +43,19 @@ pub enum Action {
         value: bool,
     },
     SetStringParameter {
+        #[serde(deserialize_with = "deserialize_string_param")]
         parameter: StringParam,
         value: String,
     },
     LightroomAction(LightroomAction),
     InternalAction(InternalAction),
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+enum ControlConfig {
+    Control(ControlProfile),
+    Include { include: String },
 }
 
 #[derive(Debug, Clone)]
@@ -66,23 +73,24 @@ struct ProfileConfig {
     #[serde(rename = "if")]
     #[serde(default)]
     when: Option<Condition>,
-    controls: Vec<Map<String, JsonValue>>,
+    controls: Vec<ControlConfig>,
 }
 
 fn add_controls(
+    profile: &str,
     devices: &HashMap<String, Device>,
     map: &mut HashMap<ControlLayerInfo, ControlProfile>,
     path: &Path,
-    controls: Vec<Map<String, JsonValue>>,
+    controls: Vec<ControlConfig>,
 ) -> Result<(), String> {
     for control in controls {
-        if let Some(JsonValue::String(include)) = control.get("include") {
-            let new_path = path.join(include);
-            let file = File::open(&new_path).map_err(|e| {
-                format!("Failed to open included file {}: {}", new_path.display(), e)
-            })?;
-            let included: Vec<Map<String, JsonValue>> =
-                serde_json::from_reader(file).map_err(|e| {
+        match control {
+            ControlConfig::Include { include } => {
+                let new_path = path.join(include);
+                let file = File::open(&new_path).map_err(|e| {
+                    format!("Failed to open included file {}: {}", new_path.display(), e)
+                })?;
+                let included: Vec<ControlConfig> = serde_json::from_reader(file).map_err(|e| {
                     format!(
                         "Failed to parse included file {} at line {}, column {}: {}",
                         new_path.display(),
@@ -91,52 +99,29 @@ fn add_controls(
                         e
                     )
                 })?;
-            add_controls(devices, map, new_path.parent().unwrap(), included)?;
-            continue;
-        }
-
-        let info: ControlLayerInfo =
-            match serde_json::from_value(JsonValue::Object(control.clone())) {
-                Ok(info) => info,
-                Err(e) => {
-                    log::error!("Failed to decode control profile: {}", e);
-                    continue;
-                }
-            };
-
-        let action = match get_layer_control(devices, &info.device_id, &info.control, &info.layer) {
-            Some(layer_control) => match layer_control {
-                LayerControl::Continuous(_) => {
-                    match serde_json::from_value::<ContinuousProfile>(JsonValue::Object(control)) {
-                        Ok(control_profile) => ControlProfile::Continuous(control_profile),
-                        Err(e) => {
-                            log::error!("Failed to decode continuous control profile: {}", e);
-                            continue;
-                        }
-                    }
-                }
-                LayerControl::Key(_) => {
-                    match serde_json::from_value::<KeyProfile>(JsonValue::Object(control)) {
-                        Ok(control_profile) => ControlProfile::Key(control_profile),
-                        Err(e) => {
-                            log::error!("Failed to decode key control profile: {}", e);
-                            continue;
-                        }
-                    }
-                }
-            },
-            None => {
-                log::warn!(
-                    "Unknown control {} in layer {} on device {}",
-                    info.control,
-                    info.layer,
-                    info.device_id
-                );
-                continue;
+                add_controls(profile, devices, map, new_path.parent().unwrap(), included)?;
             }
-        };
-
-        map.insert(info, action);
+            ControlConfig::Control(control) => {
+                let info = control.info();
+                match (
+                    control,
+                    get_layer_control(devices, &info.device_id, &info.control, &info.layer),
+                ) {
+                    (ControlProfile::Continuous(control), Some(LayerControl::Continuous(_))) => {
+                        map.insert(info, ControlProfile::Continuous(control));
+                    }
+                    (ControlProfile::Key(control), Some(LayerControl::Key(_))) => {
+                        map.insert(info, ControlProfile::Key(control));
+                    }
+                    (control_profile, Some(device_control)) => {
+                        return Err(format!("Profile {} configuration for control {} in device {}, layer {} did not match the control type from the device, {:?} {:?}", profile, info.control, info.device_id, info.layer, control_profile, device_control));
+                    }
+                    (_, _) => {
+                        return Err(format!("Profile {} configuration contained control {} in layer {}that does not exist in device {}", profile, info.control, info.layer, info.device_id));
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
@@ -151,7 +136,7 @@ impl ProfileConfig {
     ) -> Result<Profile, String> {
         let mut map = HashMap::new();
 
-        add_controls(devices, &mut map, path, self.controls)?;
+        add_controls(id, devices, &mut map, path, self.controls)?;
 
         Ok(Profile {
             id: String::from(id),
@@ -169,9 +154,9 @@ fn perform_continuous_update(
     control_profile: &ContinuousProfile,
     force: bool,
 ) {
-    let source = match &control_profile.source {
+    let source = match &control_profile.value_source {
         Some(source) => source.resolve(state),
-        None => match control_profile.action.resolve(state) {
+        None => match control_profile.on_change.resolve(state) {
             Some(ContinuousAction::Parameter(parameter)) => {
                 Some(ContinuousSource::Parameter(parameter))
             }
@@ -202,11 +187,13 @@ fn perform_key_update(
     control_profile: &KeyProfile,
     force: bool,
 ) {
-    let source = match &control_profile.source {
+    let source = match &control_profile.note_source {
         Some(source) => source.resolve(state),
-        None => match control_profile.action.resolve(state) {
-            Some(KeyAction::Parameter(parameter)) => Some(KeySource::Parameter(parameter)),
-            Some(KeyAction::Toggle { toggle: parameter }) => Some(KeySource::Parameter(parameter)),
+        None => match &control_profile.on_press.resolve(state) {
+            Some(KeyAction::Parameter(parameter)) => Some(KeySource::Parameter(parameter.clone())),
+            Some(KeyAction::Toggle { toggle: parameter }) => {
+                Some(KeySource::Parameter(parameter.clone()))
+            }
             _ => None,
         },
     };
@@ -280,7 +267,9 @@ impl Profile {
         let control_profile = self.get_control_profile(device_id, control_name, layer)?;
 
         match control_profile {
-            ControlProfile::Continuous(control_profile) => control_profile.actions(state, value),
+            ControlProfile::Continuous(control_profile) => {
+                control_profile.change_action(state, value)
+            }
             _ => None,
         }
     }
@@ -291,11 +280,17 @@ impl Profile {
         device_id: &str,
         control_name: &str,
         layer: &str,
+        key_state: KeyState,
     ) -> Option<Vec<Action>> {
         let control_profile = self.get_control_profile(device_id, control_name, layer)?;
 
-        match control_profile {
-            ControlProfile::Key(control_profile) => control_profile.actions(state),
+        match (control_profile, key_state) {
+            (ControlProfile::Key(control_profile), KeyState::On) => {
+                control_profile.press_actions(state)
+            }
+            (ControlProfile::Key(control_profile), KeyState::Off) => {
+                control_profile.release_actions(state)
+            }
             _ => None,
         }
     }
@@ -396,9 +391,9 @@ fn read_profiles(root: &Path, devices: &HashMap<String, Device>) -> BTreeMap<Str
                 Ok(profile) => {
                     profiles.insert(id, profile);
                 }
-                Err(e) => log::error!("Profile {} contained invalid controls: {}", id, e),
+                Err(e) => log::error!("{}", e),
             },
-            Err(e) => log::error!("Failed to parse profile: {}", e),
+            Err(e) => log::error!("{}", e),
         };
     }
 

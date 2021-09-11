@@ -118,4 +118,5 @@ pub enum BoolParam {
 pub enum StringParam {
     Module,
     Profile,
+    Custom(String),
 }
