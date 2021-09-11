@@ -1,4 +1,9 @@
-use std::{collections::HashMap, error::Error, path::Path, sync::mpsc::Sender};
+use std::{
+    collections::{HashMap, HashSet},
+    error::Error,
+    path::Path,
+    sync::mpsc::Sender,
+};
 
 use midi_control::MidiMessage;
 use midir::{MidiInput, MidiInputConnection, MidiOutput, MidiOutputConnection, MidiOutputPort};
@@ -16,6 +21,7 @@ pub struct DeviceConfig {
 
 pub struct Device {
     connection: Option<MidiInputConnection<()>>,
+    pub port: String,
     pub output: Option<MidiOutputConnection>,
     pub controls: HashMap<String, Control>,
 }
@@ -114,6 +120,7 @@ impl Device {
 
         Ok(Device {
             connection,
+            port: config.port.clone(),
             output,
             controls: config
                 .controls
@@ -133,12 +140,12 @@ impl Device {
         sender: &Sender<ControlMessage>,
         controls: &'a Vec<Control>,
     ) -> Result<(), Box<dyn Error + 'a>> {
-        match message {
+        match &message {
             MidiMessage::ControlChange(channel, event) => {
                 for control in controls {
                     if let Control::Continuous(continuous) = control {
                         for (layer, continuous_layer) in &continuous.layers {
-                            if continuous_layer.channel == channel
+                            if continuous_layer.channel == *channel
                                 && continuous_layer.control == event.control
                             {
                                 continuous_layer.set_value(event.value);
@@ -158,7 +165,7 @@ impl Device {
                 for control in controls {
                     if let Control::Key(key) = control {
                         for (layer, key_layer) in &key.layers {
-                            if key_layer.channel == channel && key_layer.note == event.key {
+                            if key_layer.channel == *channel && key_layer.note == event.key {
                                 key_layer.set_value(KeyState::On);
 
                                 sender.send(ControlMessage::KeyChange {
@@ -177,7 +184,7 @@ impl Device {
                 for control in controls {
                     if let Control::Key(key) = control {
                         for (layer, key_layer) in &key.layers {
-                            if key_layer.channel == channel && key_layer.note == event.key {
+                            if key_layer.channel == *channel && key_layer.note == event.key {
                                 key_layer.set_value(KeyState::Off);
 
                                 sender.send(ControlMessage::KeyChange {
@@ -195,6 +202,12 @@ impl Device {
             _ => (),
         }
 
+        log::debug!(
+            "Saw unmapped MIDI message from {}: {:?}",
+            device_id,
+            message
+        );
+
         Ok(())
     }
 }
@@ -211,15 +224,32 @@ pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> HashMap<String, D
         }
     };
 
+    let mut ports = HashSet::new();
     for entry in entries {
         match entry {
             Ok((id, config)) => match Device::new(id.clone(), sender.clone(), config) {
                 Ok(device) => {
+                    ports.insert(device.port.clone());
                     devices.insert(id, device);
                 }
                 Err(e) => log::error!("Failed to connect to device: {}", e),
             },
             Err(e) => log::error!("Failed to parse device config: {}", e),
+        }
+    }
+
+    if let Ok(midi_input) =
+        MidiInput::new("MidiCtrl").map_err(|e| format!("Failed to open MIDI input: {}", e))
+    {
+        for input_port in midi_input.ports() {
+            if let Ok(port_name) = midi_input
+                .port_name(&input_port)
+                .map_err(|e| format!("Failed to get MIDI port name: {}", e))
+            {
+                if !ports.contains(&port_name) {
+                    log::info!("Found unused MIDI port: {}", port_name);
+                }
+            }
         }
     }
 
