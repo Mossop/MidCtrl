@@ -5,4 +5,6 @@ use serde::{Deserialize, Serialize};
 pub enum LightroomAction {
     NextPhoto,
     PreviousPhoto,
+    Undo,
+    Redo,
 }

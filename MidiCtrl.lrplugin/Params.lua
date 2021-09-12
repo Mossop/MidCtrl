@@ -1,6 +1,9 @@
 local LrApplication = import "LrApplication"
 local LrApplicationView = import "LrApplicationView"
 local LrDevelopController = import "LrDevelopController"
+local LrDate = import "LrDate"
+local LrDialogs = import "LrDialogs"
+local LrUndo = import "LrUndo"
 
 local Utils = require "Utils"
 local logger = require("Logging")("State")
@@ -33,6 +36,8 @@ local function expandRange(value, min, max)
   return (value * range) + min
 end
 
+local lastDevelopChange = 0
+local lastDevelopParam = nil
 local function setDevelopParam(name, config, value)
   if LrApplicationView.getCurrentModuleName() ~= "develop" then
     LrApplicationView.switchToModule("develop")
@@ -40,6 +45,14 @@ local function setDevelopParam(name, config, value)
 
   LrDevelopController.startTracking(name)
   LrDevelopController.revealPanel(name)
+
+  local now = LrDate.currentTime()
+  if lastDevelopParam ~= name or ((now - lastDevelopChange) > 5) then
+    LrDialogs.showBezel(name)
+  end
+  lastDevelopChange = now
+  lastDevelopParam = name
+
   LrDevelopController.setValue(name, expandRange(value, config.min, config.max))
 end
 
@@ -783,7 +796,7 @@ local paramConfigs = {
     getter = getDevelopParam,
   },
 
-  StraightenAngle = {
+  CropAngle = {
     forPhoto = true,
     min = -45,
     max = 45,
@@ -791,7 +804,15 @@ local paramConfigs = {
       setDevelopParam("straightenAngle", config, value)
     end,
     getter = function(name, config, cache)
-      return getDevelopParam("straightenAngle", config, cache)
+      if cache.module == "develop" then
+        return compressRange(LrDevelopController.getValue("straightenAngle"), config.min, config.max)
+      end
+
+      if not cache.developState then
+        cache.developState = cache.photo:getDevelopSettings()
+      end
+
+      return compressRange(cache.developState.CropAngle, config.min, config.max)
     end,
   },
 
@@ -857,6 +878,17 @@ local paramConfigs = {
       return rating
     end,
   },
+
+  CanUndo = {
+    getter = function()
+      return LrUndo.canUndo()
+    end,
+  },
+  CanRedo = {
+    getter = function()
+      return LrUndo.canRedo()
+    end,
+  },
 }
 
 local Params = {}
@@ -890,7 +922,6 @@ function Params.getParams()
     photo = currentPhoto(module),
     module = module,
   }
-  params["Module"] = module
 
   for name, config in pairs(paramConfigs) do
     if not config.forPhoto or cache.photo then

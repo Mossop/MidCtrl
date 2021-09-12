@@ -104,7 +104,7 @@ pub enum FloatParam {
     GreenSaturation,
     BlueHue,
     BlueSaturation,
-    StraightenAngle,
+    CropAngle,
     Rating,
 }
 
@@ -112,6 +112,8 @@ pub enum FloatParam {
 pub enum BoolParam {
     Rejected,
     Picked,
+    CanUndo,
+    CanRedo,
 }
 
 #[derive(Serialize, Deserialize, PartialEq, Eq, Hash, Debug, Clone)]

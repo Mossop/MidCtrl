@@ -1,6 +1,7 @@
 local LrDialogs = import "LrDialogs"
 local LrShell = import "LrShell"
 local LrSelection = import "LrSelection"
+local LrUndo = import "LrUndo"
 
 local State = require "State"
 local Utils = require "Utils"
@@ -66,6 +67,14 @@ function Service:performAction(action)
 
     PreviousPhoto = function()
       LrSelection.previousPhoto()
+    end,
+
+    Undo = function()
+      LrUndo.undo()
+    end,
+
+    Redo = function()
+      LrUndo.redo()
     end,
   }
 
