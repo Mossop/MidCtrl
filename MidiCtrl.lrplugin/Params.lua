@@ -890,6 +890,7 @@ function Params.getParams()
     photo = currentPhoto(module),
     module = module,
   }
+  params["Module"] = module
 
   for name, config in pairs(paramConfigs) do
     if not config.forPhoto or cache.photo then
