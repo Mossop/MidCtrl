@@ -39,6 +39,7 @@ local function setDevelopParam(name, config, value)
   end
 
   LrDevelopController.startTracking(name)
+  LrDevelopController.revealPanel(name)
   LrDevelopController.setValue(name, expandRange(value, config.min, config.max))
 end
 
