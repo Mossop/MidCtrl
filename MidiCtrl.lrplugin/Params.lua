@@ -783,6 +783,18 @@ local paramConfigs = {
     getter = getDevelopParam,
   },
 
+  StraightenAngle = {
+    forPhoto = true,
+    min = -45,
+    max = 45,
+    setter = function(name, config, value)
+      setDevelopParam("straightenAngle", config, value)
+    end,
+    getter = function(name, config, cache)
+      return getDevelopParam("straightenAngle", config, cache)
+    end,
+  },
+
   Module = {
     forPhoto = false,
     setter = function(name, config, value)
