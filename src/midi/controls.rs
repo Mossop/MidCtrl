@@ -125,7 +125,7 @@ pub struct ContinuousControl {
     pub layers: HashMap<String, ContinuousLayer>,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Debug)]
+#[derive(Deserialize, Clone, Copy, PartialEq, Debug)]
 #[serde(from = "bool")]
 pub enum KeyState {
     Off,

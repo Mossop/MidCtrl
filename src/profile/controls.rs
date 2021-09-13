@@ -1,8 +1,11 @@
 use serde::Deserialize;
 
-use crate::state::{
-    params::{BoolParam, FloatParam},
-    Condition, State,
+use crate::{
+    midi::controls::KeyState,
+    state::{
+        params::{BoolParam, FloatParam},
+        Condition, State,
+    },
 };
 
 use super::Action;
@@ -34,13 +37,13 @@ pub enum KeyAction {
 }
 
 impl KeyAction {
-    pub fn action(&self, state: &State) -> Vec<Action> {
+    pub fn action(&self, state: &State, key_state: KeyState) -> Vec<Action> {
         let mut actions = Vec::new();
 
         match self {
             KeyAction::Parameter(parameter) => actions.push(Action::SetBoolParameter {
                 parameter: parameter.clone(),
-                value: true,
+                value: key_state == KeyState::On,
             }),
             KeyAction::Toggle { toggle: parameter } => {
                 if let Some(val) = state.bools.get(parameter) {
@@ -53,7 +56,7 @@ impl KeyAction {
             KeyAction::Action(action) => actions.push(action.clone()),
             KeyAction::Sequence { sequence } => {
                 for action in sequence {
-                    actions.append(&mut action.action(state));
+                    actions.append(&mut action.action(state, key_state));
                 }
             }
         }
@@ -193,14 +196,14 @@ impl KeyProfile {
     pub fn press_actions(&self, state: &State) -> Option<Vec<Action>> {
         self.on_press
             .resolve(state)
-            .map(|action| action.action(state))
+            .map(|action| action.action(state, KeyState::On))
     }
 
     pub fn release_actions(&self, state: &State) -> Option<Vec<Action>> {
         self.on_release
             .as_ref()
             .and_then(|choices| choices.resolve(state))
-            .map(|action| action.action(state))
+            .map(|action| action.action(state, KeyState::Off))
     }
 }
 

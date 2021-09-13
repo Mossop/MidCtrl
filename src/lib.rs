@@ -94,33 +94,49 @@ impl Controller {
         }
 
         let profiles = Profiles::new(root, &devices);
-        let mut state = State::new();
-
-        if let Some(profile) = profiles.current_profile() {
-            state
-                .strings
-                .insert(StringParam::Profile, profile.id.clone());
-        }
 
         // We expect that the first thing Lightroom will do is send a state update which will
         // trigger updates to the device.
 
-        Ok(Controller {
+        let mut controller = Controller {
             receiver,
             lightroom: Lightroom::new(sender, 61327, 61328),
             devices,
             profiles,
-            state,
-        })
+            state: State::new(),
+        };
+
+        if let Some(profile) = controller.profiles.current_profile() {
+            controller
+                .state
+                .strings
+                .insert(StringParam::Profile, profile.id.clone());
+
+            if let Some(actions) = profile.enter_actions(&controller.state) {
+                controller.perform_actions(actions);
+            }
+        }
+
+        Ok(controller)
     }
 
-    fn profile_changed(&mut self, profile: &Option<Profile>) {
+    fn profile_changed(&mut self, previous_profile: Option<Profile>, profile: &Option<Profile>) {
+        if let Some(profile) = previous_profile {
+            if let Some(actions) = profile.leave_actions(&self.state) {
+                self.perform_actions(actions);
+            }
+        }
+
         self.state.strings.set(
             StringParam::Profile,
             profile.as_ref().map(|profile| profile.id.clone()),
         );
 
         if let Some(profile) = profile {
+            if let Some(actions) = profile.enter_actions(&self.state) {
+                self.perform_actions(actions);
+            }
+
             self.lightroom.send(OutgoingMessage::Notification {
                 message: format!("Changed to profile {}", profile.name()),
             });
@@ -137,7 +153,7 @@ impl Controller {
         let new_profile = self.profiles.state_update(&self.state);
 
         if previous_profile != new_profile {
-            self.profile_changed(&new_profile);
+            self.profile_changed(previous_profile, &new_profile);
         }
 
         if let Some(profile) = new_profile {
@@ -161,7 +177,8 @@ impl Controller {
     fn set_internal_string_parameter(&mut self, param: StringParam, value: String) {
         match param {
             StringParam::Profile => {
-                if let Some(current_profile) = self.profiles.current_profile() {
+                let previous_profile = self.profiles.current_profile();
+                if let Some(ref current_profile) = previous_profile {
                     if current_profile.id == value {
                         return;
                     }
@@ -169,7 +186,7 @@ impl Controller {
 
                 let new_profile = self.profiles.set_profile(&value, &self.state);
                 if new_profile.is_some() {
-                    self.profile_changed(&new_profile);
+                    self.profile_changed(previous_profile, &new_profile);
                 }
 
                 if let Some(profile) = new_profile {

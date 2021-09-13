@@ -23,13 +23,13 @@ use crate::{
     utils::iter_json,
 };
 
-use self::controls::ContinuousAction;
 use self::controls::ContinuousProfile;
 use self::controls::ControlLayerInfo;
 use self::controls::ControlProfile;
 use self::controls::KeyAction;
 use self::controls::KeyProfile;
 use self::controls::KeySource;
+use self::controls::{Choices, ContinuousAction};
 
 #[derive(Deserialize, Debug, Clone)]
 #[serde(untagged)]
@@ -63,6 +63,8 @@ pub struct Profile {
     pub id: String,
     name: Option<String>,
     when: Option<Condition>,
+    on_enter: Option<Choices<KeyAction>>,
+    on_leave: Option<Choices<KeyAction>>,
     controls: HashMap<ControlLayerInfo, ControlProfile>,
 }
 
@@ -73,6 +75,12 @@ struct ProfileConfig {
     #[serde(rename = "if")]
     #[serde(default)]
     when: Option<Condition>,
+    #[serde(rename = "onEnter")]
+    #[serde(default)]
+    on_enter: Option<Choices<KeyAction>>,
+    #[serde(rename = "onLeave")]
+    #[serde(default)]
+    on_leave: Option<Choices<KeyAction>>,
     controls: Vec<ControlConfig>,
 }
 
@@ -146,6 +154,8 @@ impl ProfileConfig {
             id: String::from(id),
             name: self.name,
             when: self.when,
+            on_enter: self.on_enter,
+            on_leave: self.on_leave,
             controls: map,
         })
     }
@@ -258,6 +268,20 @@ impl Profile {
         };
 
         self.controls.get(&info)
+    }
+
+    pub fn enter_actions(&self, state: &State) -> Option<Vec<Action>> {
+        self.on_enter
+            .as_ref()
+            .and_then(|choices| choices.resolve(state))
+            .map(|action| action.action(state, KeyState::On))
+    }
+
+    pub fn leave_actions(&self, state: &State) -> Option<Vec<Action>> {
+        self.on_leave
+            .as_ref()
+            .and_then(|choices| choices.resolve(state))
+            .map(|action| action.action(state, KeyState::Off))
     }
 
     pub fn continuous_actions(
