@@ -60,9 +60,9 @@ pub struct ContinuousLayer {
     pub channel: Channel,
     pub control: u8,
     #[serde(default = "default0")]
-    min: u8,
+    pub min: u8,
     #[serde(default = "default127")]
-    max: u8,
+    pub max: u8,
     #[serde(skip)]
     pub state: Arc<Mutex<u8>>,
 }

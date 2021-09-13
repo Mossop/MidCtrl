@@ -321,6 +321,8 @@ impl Profile {
                         control_profile,
                         force,
                     );
+                } else {
+                    layer_control.update(connection, layer_control.min, force);
                 }
             }
             LayerControl::Key(layer_control) => {
@@ -328,6 +330,8 @@ impl Profile {
                     self.get_control_profile(device_id, control_name, layer)
                 {
                     perform_key_update(connection, state, layer_control, control_profile, force);
+                } else {
+                    layer_control.update(connection, KeyState::Off, true);
                 }
             }
         }

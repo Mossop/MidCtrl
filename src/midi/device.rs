@@ -100,7 +100,7 @@ impl Device {
                 match control {
                     Control::Continuous(ref mut continuous) => {
                         for continuous_layer in continuous.layers.values_mut() {
-                            continuous_layer.update(output, 0, true);
+                            continuous_layer.update(output, continuous_layer.min, true);
                         }
                     }
                     Control::Key(ref mut key) => {
