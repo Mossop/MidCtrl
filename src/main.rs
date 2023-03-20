@@ -27,7 +27,7 @@ fn run() -> Result<(), String> {
         match canonicalize(PathBuf::from(arg)) {
             Ok(dir) => dir,
             Err(e) => {
-                return Err(format!("Failed to find settings directory: {}", e));
+                return Err(format!("Failed to find settings directory: {e}"));
             }
         }
     } else {
@@ -39,14 +39,14 @@ fn run() -> Result<(), String> {
             None => match current_dir() {
                 Ok(dir) => dir,
                 Err(e) => {
-                    return Err(format!("Failed to find settings directory: {}", e));
+                    return Err(format!("Failed to find settings directory: {e}"));
                 }
             },
         }
     };
 
     let logger = Logger::try_with_env_or_str("info")
-        .map_err(|e| format!("Failed to initialize logging: {}", e))?;
+        .map_err(|e| format!("Failed to initialize logging: {e}"))?;
 
     let logger = if embedded {
         let mut filename = dir.clone();
@@ -60,7 +60,7 @@ fn run() -> Result<(), String> {
 
     let _log_handle = logger
         .start()
-        .map_err(|e| format!("Failed to start logging: {}", e))?;
+        .map_err(|e| format!("Failed to start logging: {e}"))?;
 
     let mut controller = Controller::new(&dir)?;
     controller.run()
@@ -68,6 +68,6 @@ fn run() -> Result<(), String> {
 
 fn main() {
     if let Err(e) = run() {
-        eprintln!("Error starting midi-ctrl: {}", e);
+        eprintln!("Error starting midi-ctrl: {e}");
     }
 }

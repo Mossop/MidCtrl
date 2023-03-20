@@ -38,21 +38,21 @@ pub enum Param {
     String(StringParam),
 }
 
-impl Into<Param> for FloatParam {
-    fn into(self) -> Param {
-        Param::Float(self)
+impl From<FloatParam> for Param {
+    fn from(val: FloatParam) -> Self {
+        Param::Float(val)
     }
 }
 
-impl Into<Param> for BoolParam {
-    fn into(self) -> Param {
-        Param::Bool(self)
+impl From<BoolParam> for Param {
+    fn from(val: BoolParam) -> Self {
+        Param::Bool(val)
     }
 }
 
-impl Into<Param> for StringParam {
-    fn into(self) -> Param {
-        Param::String(self)
+impl From<StringParam> for Param {
+    fn from(val: StringParam) -> Self {
+        Param::String(val)
     }
 }
 
@@ -89,7 +89,7 @@ pub trait SetMapEntry {
     type Key;
     type Value;
 
-    fn set(&mut self, param: Self::Key, value: Option<Self::Value>) -> ();
+    fn set(&mut self, param: Self::Key, value: Option<Self::Value>);
 }
 
 impl<P, V> SetMapEntry for HashMap<P, V>
@@ -104,8 +104,6 @@ where
             Some(v) => self.insert(param, v),
             None => self.remove(&param),
         };
-
-        ()
     }
 }
 
@@ -120,9 +118,9 @@ pub enum Value {
 impl Display for Value {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Value::String(val) => write!(f, "\"{}\"", val),
-            Value::Boolean(val) => write!(f, "{}", val),
-            Value::Float(val) => write!(f, "{}", val),
+            Value::String(val) => write!(f, "\"{val}\""),
+            Value::Boolean(val) => write!(f, "{val}"),
+            Value::Float(val) => write!(f, "{val}"),
         }
     }
 }
@@ -176,7 +174,7 @@ impl TryFrom<String> for GeneralComparison {
         match value.as_str() {
             "==" => Ok(GeneralComparison::Equal),
             "!=" => Ok(GeneralComparison::NotEqual),
-            _ => Err(format!("Unknown comparison: {}", value)),
+            _ => Err(format!("Unknown comparison: {value}")),
         }
     }
 }
@@ -209,7 +207,7 @@ impl TryFrom<String> for NumericComparison {
             "<=" => Ok(NumericComparison::LessThanEqual),
             ">" => Ok(NumericComparison::GreaterThan),
             ">=" => Ok(NumericComparison::GreaterThanEqual),
-            _ => Err(format!("Unknown comparison: {}", value)),
+            _ => Err(format!("Unknown comparison: {value}")),
         }
     }
 }

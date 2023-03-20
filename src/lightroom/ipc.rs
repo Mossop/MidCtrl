@@ -72,7 +72,7 @@ fn open_stream(port: u16) -> Result<Option<TcpStream>, String> {
                         return Ok(None);
                     }
                 }
-                _ => return Err(format!("Failed opening TCP stream: {}", e)),
+                _ => return Err(format!("Failed opening TCP stream: {e}")),
             },
         }
     }
@@ -91,7 +91,7 @@ fn open_outgoing_stream(
 
     let read_stream = stream
         .try_clone()
-        .map_err(|e| format!("Failed to clone TCP stream: {}", e))?;
+        .map_err(|e| format!("Failed to clone TCP stream: {e}"))?;
 
     if let Ok(mut guard) = outgoing_stream.lock() {
         guard.replace(stream);
@@ -134,7 +134,7 @@ fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bo
 
     let mut send_stream = stream
         .try_clone()
-        .map_err(|e| format!("Failed to clone incoming stream: {}", e))?;
+        .map_err(|e| format!("Failed to clone incoming stream: {e}"))?;
 
     log::debug!("IPC incoming stream connected");
 
@@ -144,21 +144,21 @@ fn open_incoming_stream(port: u16, sender: Sender<IncomingMessage>) -> Result<bo
     for line in lines {
         send_stream
             .write_all(&[0x6f, 0x6b])
-            .map_err(|e| format!("Failed to send IPC response: {}", e))?;
+            .map_err(|e| format!("Failed to send IPC response: {e}"))?;
         send_stream
             .flush()
-            .map_err(|e| format!("Failed to send IPC response: {}", e))?;
+            .map_err(|e| format!("Failed to send IPC response: {e}"))?;
 
         let message = serde_json::from_str(
-            &line.map_err(|e| format!("Failed reading from incoming IPC stream: {}", e))?,
+            &line.map_err(|e| format!("Failed reading from incoming IPC stream: {e}"))?,
         )
-        .map_err(|e| format!("Failed to parse incoming IPC message: {}", e))?;
+        .map_err(|e| format!("Failed to parse incoming IPC message: {e}"))?;
 
         match message {
             IncomingMessage::Disconnect => return Ok(false),
             message => sender
                 .send(message)
-                .map_err(|e| format!("Failed to pass incoming IPC message: {}", e))?,
+                .map_err(|e| format!("Failed to pass incoming IPC message: {e}"))?,
         }
     }
 
@@ -203,20 +203,20 @@ pub fn connect(incoming_port: u16, outgoing_port: u16) -> (Incoming, Sender<Outg
         let send_message = |message| -> Result<(), String> {
             if let Some(ref mut stream) = *(receiving_stream
                 .lock()
-                .map_err(|e| format!("Failed to lock stream: {}", e))?)
+                .map_err(|e| format!("Failed to lock stream: {e}"))?)
             {
                 log::trace!("Sending message: {:?}", message);
 
                 let mut data = serde_json::to_vec(&message)
-                    .map_err(|e| format!("Failed to encoding outgoing IPC message: {}", e))?;
+                    .map_err(|e| format!("Failed to encoding outgoing IPC message: {e}"))?;
                 data.push(0x0a);
 
                 stream
                     .write_all(&data)
-                    .map_err(|e| format!("Failed writing to outgoing IPC stream: {}", e))?;
+                    .map_err(|e| format!("Failed writing to outgoing IPC stream: {e}"))?;
                 stream
                     .flush()
-                    .map_err(|e| format!("Failed writing to outgoing IPC stream: {}", e))?;
+                    .map_err(|e| format!("Failed writing to outgoing IPC stream: {e}"))?;
             } else {
                 log::warn!("Attempt to send message while not connected");
             }

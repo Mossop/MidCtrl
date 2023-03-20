@@ -142,7 +142,7 @@ impl Controller {
             });
         } else {
             self.lightroom.send(OutgoingMessage::Notification {
-                message: format!("Lost profile"),
+                message: "Lost profile".to_string(),
             });
         }
     }
@@ -204,15 +204,11 @@ impl Controller {
     }
 
     fn set_internal_bool_parameter(&mut self, param: BoolParam, _: bool) {
-        match param {
-            _ => log::warn!("Attempting to set unknown parameter {:?}", param),
-        }
+        log::warn!("Attempting to set unknown parameter {:?}", param);
     }
 
     fn set_internal_float_parameter(&mut self, param: FloatParam, _: f64) {
-        match param {
-            _ => log::warn!("Attempting to set unknown parameter {:?}", param),
-        }
+        log::warn!("Attempting to set unknown parameter {:?}", param);
     }
 
     fn perform_actions(&mut self, actions: Vec<Action>) {
@@ -239,10 +235,10 @@ impl Controller {
                     }),
                     Module::Internal => self.set_internal_string_parameter(parameter, value),
                 },
-                Action::LightroomAction(action) => {
+                Action::Lightroom(action) => {
                     self.lightroom.send(OutgoingMessage::Action(action));
                 }
-                Action::InternalAction(InternalAction::RefreshController) => {
+                Action::Internal(InternalAction::RefreshController) => {
                     if let Some(profile) = self.profiles.current_profile() {
                         profile.update_devices(&mut self.devices, &self.state, true);
                     };
@@ -287,26 +283,22 @@ impl Controller {
                 profile.key_actions(&self.state, &device_id, &control, &layer, key_state)
             {
                 self.perform_actions(action);
-            } else {
-                if let Some(layer_control) =
-                    get_layer_control(&self.devices, &device_id, &control, &layer)
-                {
-                    if let Some(device) = self.devices.get_mut(&device_id) {
-                        if let Some(ref mut connection) = device.output {
-                            profile.update_layer_control(
-                                connection,
-                                &self.state,
-                                &device_id,
-                                &control,
-                                &layer,
-                                &layer_control,
-                                false,
-                            )
-                        }
+            } else if let Some(layer_control) =
+                get_layer_control(&self.devices, &device_id, &control, &layer)
+            {
+                if let Some(device) = self.devices.get_mut(&device_id) {
+                    if let Some(ref mut connection) = device.output {
+                        profile.update_layer_control(
+                            connection,
+                            &self.state,
+                            &device_id,
+                            &control,
+                            &layer,
+                            &layer_control,
+                            false,
+                        )
                     }
                 }
-
-                return;
             }
         }
     }
@@ -316,7 +308,7 @@ impl Controller {
             let message = self
                 .receiver
                 .recv()
-                .map_err(|e| format!("Control message channel failed: {}", e))?;
+                .map_err(|e| format!("Control message channel failed: {e}"))?;
             match message {
                 ControlMessage::Reset => self.reset_state(),
                 ControlMessage::Disconnect => {

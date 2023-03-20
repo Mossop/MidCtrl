@@ -78,6 +78,6 @@ where
     let dir_reader = read_dir(path)?;
     Ok(IterJson {
         data_type: PhantomData,
-        dir_reader: dir_reader.into_iter(),
+        dir_reader,
     })
 }

@@ -23,6 +23,6 @@ fn run() -> Result<(), Box<dyn Error>> {
 
 fn main() {
     if let Err(e) = run() {
-        eprintln!("Failed to start: {}", e);
+        eprintln!("Failed to start: {e}");
     }
 }

@@ -47,8 +47,8 @@ pub enum Action {
         parameter: StringParam,
         value: String,
     },
-    LightroomAction(LightroomAction),
-    InternalAction(InternalAction),
+    Lightroom(LightroomAction),
+    Internal(InternalAction),
 }
 
 #[derive(Deserialize, Debug)]
@@ -323,6 +323,7 @@ impl Profile {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn update_layer_control(
         &self,
         connection: &mut MidiOutputConnection,
@@ -436,7 +437,7 @@ impl Profiles {
     pub fn new(root: &Path, devices: &HashMap<String, Device>) -> Profiles {
         let profile_list = read_profiles(root, devices);
 
-        if profile_list.len() > 0 {
+        if !profile_list.is_empty() {
             log::info!("Loaded {} profiles", profile_list.len());
         } else {
             log::warn!("Found no profiles");

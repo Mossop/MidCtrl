@@ -30,16 +30,16 @@ fn input_port(
     midi_input: MidiInput,
     device_id: &str,
     port: &str,
-    controls: &Vec<Control>,
+    controls: &[Control],
     sender: Sender<ControlMessage>,
 ) -> Result<Option<MidiInputConnection<()>>, String> {
     for input_port in midi_input.ports() {
         let port_name = midi_input
             .port_name(&input_port)
-            .map_err(|e| format!("Failed to get MIDI port name: {}", e))?;
+            .map_err(|e| format!("Failed to get MIDI port name: {e}"))?;
         if port == port_name {
             let device_id = device_id.to_string();
-            let receiver_controls = controls.clone();
+            let receiver_controls = controls.to_vec();
             return Ok(Some(
                 midi_input
                     .connect(
@@ -58,9 +58,7 @@ fn input_port(
                         },
                         (),
                     )
-                    .map_err(|e| {
-                        format!("Failed to connect to MIDI device {}: {}", port_name, e)
-                    })?,
+                    .map_err(|e| format!("Failed to connect to MIDI device {port_name}: {e}"))?,
             ));
         }
     }
@@ -72,7 +70,7 @@ fn output_port(midi_output: &MidiOutput, name: &str) -> Result<Option<MidiOutput
     for port in midi_output.ports() {
         let port_name = midi_output
             .port_name(&port)
-            .map_err(|e| format!("Failed to get MIDI port name: {}", e))?;
+            .map_err(|e| format!("Failed to get MIDI port name: {e}"))?;
         if name == port_name {
             return Ok(Some(port));
         }
@@ -88,9 +86,9 @@ impl Device {
         mut config: DeviceConfig,
     ) -> Result<Device, String> {
         let midi_input =
-            MidiInput::new("MidiCtrl").map_err(|e| format!("Failed to open MIDI input: {}", e))?;
-        let midi_output = MidiOutput::new("MidiCtrl")
-            .map_err(|e| format!("Failed to open MIDI output: {}", e))?;
+            MidiInput::new("MidiCtrl").map_err(|e| format!("Failed to open MIDI input: {e}"))?;
+        let midi_output =
+            MidiOutput::new("MidiCtrl").map_err(|e| format!("Failed to open MIDI output: {e}"))?;
 
         let mut output = output_port(&midi_output, &config.port)?
             .and_then(|port| midi_output.connect(&port, "MidiCtrl").ok());
@@ -138,7 +136,7 @@ impl Device {
         device_id: String,
         message: MidiMessage,
         sender: &Sender<ControlMessage>,
-        controls: &'a Vec<Control>,
+        controls: &'a [Control],
     ) -> Result<(), Box<dyn Error + 'a>> {
         match &message {
             MidiMessage::ControlChange(channel, event) => {
@@ -239,12 +237,12 @@ pub fn devices(sender: Sender<ControlMessage>, root: &Path) -> HashMap<String, D
     }
 
     if let Ok(midi_input) =
-        MidiInput::new("MidiCtrl").map_err(|e| format!("Failed to open MIDI input: {}", e))
+        MidiInput::new("MidiCtrl").map_err(|e| format!("Failed to open MIDI input: {e}"))
     {
         for input_port in midi_input.ports() {
             if let Ok(port_name) = midi_input
                 .port_name(&input_port)
-                .map_err(|e| format!("Failed to get MIDI port name: {}", e))
+                .map_err(|e| format!("Failed to get MIDI port name: {e}"))
             {
                 if !ports.contains(&port_name) {
                     log::info!("Found unused MIDI port: {}", port_name);
